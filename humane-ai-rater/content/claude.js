@@ -1,6 +1,7 @@
 /**
  * Content Script for Claude (claude.ai)
  * Detects AI responses and injects HumaneBench rating buttons.
+ * Updated Feb 2025 for new Claude.ai DOM structure.
  */
 
 (function () {
@@ -8,64 +9,70 @@
   const PROCESSED_ATTR = 'data-humane-processed';
 
   /**
-   * Determine if a chat-message-content element is an assistant (not human) message.
-   * Uses multiple heuristics since Claude doesn't have a simple author-role attribute.
+   * Claude.ai DOM selectors (Feb 2025)
+   */
+  const CLAUDE_CONFIG = {
+    // Response content selectors
+    responseSelectors: [
+      '.standard-markdown',                    // New Claude response container
+      '.font-claude-response-body',            // Response text paragraphs
+      '[data-testid="chat-message-content"]',  // Legacy selector
+      '.prose'                                 // Legacy selector
+    ],
+
+    // User message selectors
+    userSelectors: [
+      '.font-user-message',                    // User message text
+      '[data-testid="user-message"]'           // Legacy
+    ],
+
+    // Grid position indicates assistant (row-start-2 is typically assistant)
+    assistantGridClass: 'row-start-2'
+  };
+
+  /**
+   * Determine if an element is an assistant (not human) message.
    */
   function isAssistantMessage(element) {
-    // Strategy 1: Check parent/ancestor for role or author indicators
-    const parent = element.parentElement;
-    if (!parent) return false;
+    // Strategy 1: Check for row-start-2 class (Claude uses grid layout)
+    // Assistant messages are typically in row-start-2
+    const gridParent = element.closest('[class*="row-start"]');
+    if (gridParent) {
+      const className = gridParent.className || '';
+      if (className.includes('row-start-2')) return true;
+      if (className.includes('row-start-1') && !element.closest('.standard-markdown')) return false;
+    }
 
-    // Walk up to find the conversation turn container
+    // Strategy 2: Check for standard-markdown class (assistant responses)
+    if (element.classList.contains('standard-markdown') ||
+        element.querySelector('.standard-markdown')) {
+      return true;
+    }
+
+    // Strategy 3: Check for font-claude-response-body (response text)
+    if (element.querySelector('.font-claude-response-body') ||
+        element.classList.contains('font-claude-response-body')) {
+      return true;
+    }
+
+    // Strategy 4: Legacy - check for .prose
+    const hasProse = element.querySelector('.prose') || element.classList.contains('prose');
+    if (hasProse) return true;
+
+    // Strategy 5: Check parent/ancestor for role indicators
     let turnContainer = element.closest('[data-testid]');
     if (turnContainer) {
       const testId = turnContainer.getAttribute('data-testid');
-      // If there's an explicit human/user indicator, skip it
       if (testId && (testId.includes('human') || testId.includes('user'))) return false;
-      // If there's an explicit assistant indicator, accept it
       if (testId && testId.includes('assistant')) return true;
     }
 
-    // Strategy 2: Check for .prose container - assistant messages on Claude
-    // are typically wrapped in a .prose div. Human messages usually don't have .prose.
-    const hasProse = element.querySelector('.prose');
-    if (hasProse) return true;
-
-    // Strategy 3: Check surrounding elements for assistant-specific UI
-    // Assistant messages often have action buttons (copy, retry, etc.) nearby
-    const messageRow = element.closest('[class*="message"]') || element.closest('[class*="msg"]') || parent;
+    // Strategy 6: Check for action buttons (copy, retry) that only appear on assistant messages
+    const messageRow = element.closest('[class*="grid"]') || element.parentElement;
     if (messageRow) {
-      // Look for copy/retry buttons that only appear on assistant messages
       const hasActionButtons = messageRow.querySelector('button[aria-label*="opy"]')
-        || messageRow.querySelector('button[aria-label*="etry"]')
-        || messageRow.querySelector('[class*="action"]');
+        || messageRow.querySelector('button[aria-label*="etry"]');
       if (hasActionButtons) return true;
-    }
-
-    // Strategy 4: Check the content length heuristic
-    // Assistant messages tend to be longer and have more structure
-    const text = element.textContent || '';
-    const hasStructuredContent = element.querySelector('pre') || element.querySelector('ol')
-      || element.querySelector('ul') || element.querySelector('code')
-      || element.querySelector('h1, h2, h3, h4');
-    if (hasStructuredContent && text.length > 50) return true;
-
-    // Strategy 5: Check for the message-content grid layout pattern
-    // On Claude, assistant messages are in a specific grid column
-    const gridParent = element.closest('[class*="col-start"]') || element.closest('[class*="grid"]');
-    if (gridParent) {
-      const className = gridParent.className || '';
-      // Assistant messages typically start at col-start-2 or similar patterns
-      if (className.includes('col-start-2') || className.includes('col-start-3')) return true;
-    }
-
-    // Strategy 6: Fallback - use index parity as last resort, but only if
-    // we have a reasonable number of messages
-    const allMessages = document.querySelectorAll('[data-testid="chat-message-content"]');
-    const idx = Array.from(allMessages).indexOf(element);
-    if (idx >= 0 && allMessages.length >= 2) {
-      // Only use parity if we're somewhat confident (at least 2 messages)
-      return idx % 2 === 1;
     }
 
     return false;
@@ -75,41 +82,51 @@
    * Extract the user prompt that precedes an assistant response.
    */
   function getUserPrompt(assistantElement) {
-    // Strategy 1: Get previous chat-message-content element
-    const allMessages = document.querySelectorAll('[data-testid="chat-message-content"]');
-    const messagesArray = Array.from(allMessages);
-    const currentIndex = messagesArray.indexOf(assistantElement);
+    // Strategy 1: Find all standard-markdown elements (responses) and user messages
+    // Walk backward from this response to find the preceding user message
+    const allResponses = document.querySelectorAll('.standard-markdown');
+    const responseIndex = Array.from(allResponses).indexOf(assistantElement);
 
-    if (currentIndex > 0) {
-      const prevMsg = messagesArray[currentIndex - 1];
-      const prose = prevMsg.querySelector('.prose') || prevMsg;
-      const text = prose.textContent?.trim();
-      if (text && text.length > 0 && text.length < 5000) return text;
-    }
-
-    // Strategy 2: Walk up to parent container and check previous siblings
-    let container = assistantElement.closest('[data-testid="chat-message-content"]')
-      || assistantElement.parentElement;
-
-    if (container) {
-      // Go up one more level to the turn wrapper
-      let turnWrapper = container.parentElement;
-      if (turnWrapper) {
-        let prev = turnWrapper.previousElementSibling;
+    // Strategy 2: Walk up the DOM and find the previous message block
+    let current = assistantElement;
+    while (current && current !== document.body) {
+      // Go up to find the message container (usually has grid classes)
+      const container = current.closest('[class*="grid"]');
+      if (container && container.parentElement) {
+        let prev = container.previousElementSibling;
         while (prev) {
-          const userContent = prev.querySelector('[data-testid="chat-message-content"]')
-            || prev.querySelector('.prose')
-            || prev.querySelector('p');
-          if (userContent) {
-            const text = userContent.textContent?.trim();
+          // Look for user message content
+          const userText = prev.querySelector('.font-user-message') ||
+                          prev.querySelector('[data-testid="user-message"]') ||
+                          prev.querySelector('p');
+          if (userText) {
+            const text = userText.textContent?.trim();
             if (text && text.length > 0 && text.length < 5000) return text;
+          }
+          // Also check if prev itself contains text (user messages might be simpler)
+          if (!prev.querySelector('.standard-markdown')) {
+            const text = prev.textContent?.trim();
+            if (text && text.length > 0 && text.length < 5000 && text.length < 2000) {
+              return text;
+            }
           }
           prev = prev.previousElementSibling;
         }
       }
+      current = current.parentElement;
     }
 
-    // Strategy 3: Find all .prose elements and take the one before
+    // Strategy 3: Find user input area and get its content (for single-turn)
+    const userMessages = document.querySelectorAll('.font-user-message, [data-testid="user-message"]');
+    if (userMessages.length > 0) {
+      // Get the last user message before this response
+      for (let i = userMessages.length - 1; i >= 0; i--) {
+        const text = userMessages[i].textContent?.trim();
+        if (text && text.length > 0) return text;
+      }
+    }
+
+    // Strategy 4: Legacy - Find all .prose elements
     const allProse = document.querySelectorAll('.prose');
     const proseArray = Array.from(allProse);
     const thisProseIndex = proseArray.findIndex(el =>
@@ -149,60 +166,77 @@
     // Mark as processed early to prevent re-processing
     responseElement.setAttribute(PROCESSED_ATTR, 'true');
 
-    // Get the response text
-    const prose = responseElement.querySelector('.prose') || responseElement;
-    const aiResponse = prose.textContent?.trim();
+    // Get the response text - try new selectors first
+    const contentEl = responseElement.querySelector('.font-claude-response-body') ||
+                      responseElement.querySelector('.standard-markdown') ||
+                      responseElement.querySelector('.prose') ||
+                      responseElement;
+    const aiResponse = contentEl.textContent?.trim();
     if (!aiResponse || aiResponse.length < 10) return;
 
     const userPrompt = getUserPrompt(responseElement);
 
-    // Insert the rate button
-    const insertionPoint = responseElement.querySelector('.prose') || responseElement;
-    humaneOverlay.injectRateButton(insertionPoint, userPrompt, aiResponse, MODEL_NAME);
+    // Insert the rate button at the response element
+    humaneOverlay.injectRateButton(responseElement, userPrompt, aiResponse, MODEL_NAME);
   }
 
   /**
    * Scan for Claude's assistant responses
    */
   function scanForResponses() {
-    // Primary: find all chat-message-content elements
-    const allMessages = document.querySelectorAll('[data-testid="chat-message-content"]');
+    const seen = new Set();
 
-    allMessages.forEach(el => {
-      if (el.hasAttribute(PROCESSED_ATTR)) return;
-      // Skip elements inside input areas
+    // Primary: find all .standard-markdown elements (new Claude structure)
+    const standardMarkdown = document.querySelectorAll('.standard-markdown');
+    standardMarkdown.forEach(el => {
+      if (seen.has(el) || el.hasAttribute(PROCESSED_ATTR)) return;
       if (el.closest('[contenteditable]') || el.closest('textarea')) return;
 
-      // Check if this is an assistant message
+      seen.add(el);
       if (isAssistantMessage(el)) {
         processResponse(el);
       }
     });
 
-    // Fallback: try finding .prose elements that haven't been processed
-    // and appear to be assistant messages
-    const proseElements = document.querySelectorAll('.prose');
-    proseElements.forEach(el => {
-      // Check if already processed via parent
-      const parent = el.closest('[data-testid="chat-message-content"]');
-      if (parent && parent.hasAttribute(PROCESSED_ATTR)) return;
-      if (el.hasAttribute(PROCESSED_ATTR)) return;
+    // Secondary: find elements with row-start-2 that contain responses
+    const gridResponses = document.querySelectorAll('[class*="row-start-2"]');
+    gridResponses.forEach(el => {
+      if (seen.has(el) || el.hasAttribute(PROCESSED_ATTR)) return;
       if (el.closest('[contenteditable]') || el.closest('textarea')) return;
 
-      // Only process .prose that has substantial content and structured elements
+      // Check if contains response content
+      const hasContent = el.querySelector('.standard-markdown') ||
+                        el.querySelector('.font-claude-response-body');
+      if (hasContent && !hasContent.hasAttribute(PROCESSED_ATTR)) {
+        seen.add(hasContent);
+        processResponse(hasContent);
+      }
+    });
+
+    // Legacy: find all chat-message-content elements
+    const legacyMessages = document.querySelectorAll('[data-testid="chat-message-content"]');
+    legacyMessages.forEach(el => {
+      if (seen.has(el) || el.hasAttribute(PROCESSED_ATTR)) return;
+      if (el.closest('[contenteditable]') || el.closest('textarea')) return;
+
+      seen.add(el);
+      if (isAssistantMessage(el)) {
+        processResponse(el);
+      }
+    });
+
+    // Legacy fallback: .prose elements
+    const proseElements = document.querySelectorAll('.prose');
+    proseElements.forEach(el => {
+      if (seen.has(el) || el.hasAttribute(PROCESSED_ATTR)) return;
+      if (el.closest('[contenteditable]') || el.closest('textarea')) return;
+
       const text = el.textContent?.trim();
       if (!text || text.length < 10) return;
 
-      // If parent is a chat-message-content, let the primary loop handle it
-      if (parent) return;
-
-      // Mark and process orphan .prose that look like responses
-      const hasStructure = el.querySelector('p') || el.querySelector('pre')
-        || el.querySelector('ul, ol') || el.querySelector('code');
-      if (hasStructure && text.length > 50) {
-        el.setAttribute(PROCESSED_ATTR, 'true');
-        const userPrompt = getUserPrompt(el);
-        humaneOverlay.injectRateButton(el, userPrompt, text, MODEL_NAME);
+      seen.add(el);
+      if (isAssistantMessage(el)) {
+        processResponse(el);
       }
     });
   }
