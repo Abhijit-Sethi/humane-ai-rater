@@ -449,6 +449,12 @@ exports.createUserProfile = functions.https.onRequest(async (req, res) => {
       });
       res.status(200).json({ uid, message: 'User profile updated' });
     } else {
+      // Initialize per-dimension score accumulators
+      const dimensionScores = {};
+      HUMANENESS_DIMENSIONS.forEach(dim => {
+        dimensionScores[dim] = { apiTotal: 0, apiCount: 0, userTotal: 0, userCount: 0 };
+      });
+
       await userRef.set({
         uid,
         email: decoded.email || null,
@@ -458,6 +464,7 @@ exports.createUserProfile = functions.https.onRequest(async (req, res) => {
         totalRatings: 0,
         totalReviews: 0,
         preferredPlatforms: preferredPlatforms || [],
+        dimensionScores,
       });
       res.status(201).json({ uid, message: 'User profile created' });
     }
@@ -470,7 +477,8 @@ exports.createUserProfile = functions.https.onRequest(async (req, res) => {
 /**
  * POST /rate
  * Accepts conversation markdown, generates mock humaneness ratings, stores them.
- * Body: { markdown, platform }
+ * Optionally accepts userRatings at submission time.
+ * Body: { markdown, platform, userRatings? }
  */
 exports.rate = functions.https.onRequest(async (req, res) => {
   if (handleCors(req, res)) return;
@@ -483,7 +491,7 @@ exports.rate = functions.https.onRequest(async (req, res) => {
   try {
     const decoded = await verifyAuth(req);
     const uid = decoded.uid;
-    const { markdown, platform } = req.body || {};
+    const { markdown, platform, userRatings } = req.body || {};
 
     if (!markdown || typeof markdown !== 'string') {
       res.status(400).json({ error: 'Missing or invalid "markdown" field' });
@@ -494,8 +502,24 @@ exports.rate = functions.https.onRequest(async (req, res) => {
       return;
     }
 
+    // Validate optional userRatings if provided
+    if (userRatings) {
+      if (typeof userRatings !== 'object') {
+        res.status(400).json({ error: '"userRatings" must be an object' });
+        return;
+      }
+      if (typeof userRatings.overallScore !== 'number' ||
+          userRatings.overallScore < 0 || userRatings.overallScore > 1) {
+        res.status(400).json({ error: 'userRatings.overallScore must be a number between 0 and 1' });
+        return;
+      }
+    }
+
     const markdownHash = crypto.createHash('sha256').update(markdown).digest('hex');
     const apiRatings = generateMockRatings(markdown, platform);
+
+    const hasReview = !!userRatings;
+    const status = hasReview ? 'reviewed' : 'pending_review';
 
     const ratingRef = db.collection('user_ratings').doc();
     const ratingId = ratingRef.id;
@@ -507,18 +531,41 @@ exports.rate = functions.https.onRequest(async (req, res) => {
       conversationMarkdown: markdown,
       markdownHash,
       createdAt: FieldValue.serverTimestamp(),
-      reviewedAt: null,
-      status: 'pending_review',
+      reviewedAt: hasReview ? FieldValue.serverTimestamp() : null,
+      status,
       apiRatings,
-      userRatings: null,
+      userRatings: userRatings || null,
     });
 
-    // Increment user's totalRatings
-    await db.collection('users').doc(uid).update({
+    // Update user profile: increment counters + accumulate dimension scores
+    const userUpdate = {
       totalRatings: FieldValue.increment(1),
+    };
+    if (hasReview) {
+      userUpdate.totalReviews = FieldValue.increment(1);
+    }
+
+    // Accumulate per-dimension API scores (always)
+    HUMANENESS_DIMENSIONS.forEach(dim => {
+      if (apiRatings.dimensions[dim]) {
+        userUpdate[`dimensionScores.${dim}.apiTotal`] = FieldValue.increment(apiRatings.dimensions[dim].score);
+        userUpdate[`dimensionScores.${dim}.apiCount`] = FieldValue.increment(1);
+      }
     });
 
-    res.status(201).json({ ratingId, apiRatings, status: 'pending_review' });
+    // Accumulate per-dimension user scores (if provided)
+    if (hasReview && userRatings.dimensions) {
+      HUMANENESS_DIMENSIONS.forEach(dim => {
+        if (userRatings.dimensions[dim] && typeof userRatings.dimensions[dim].score === 'number') {
+          userUpdate[`dimensionScores.${dim}.userTotal`] = FieldValue.increment(userRatings.dimensions[dim].score);
+          userUpdate[`dimensionScores.${dim}.userCount`] = FieldValue.increment(1);
+        }
+      });
+    }
+
+    await db.collection('users').doc(uid).update(userUpdate);
+
+    res.status(201).json({ ratingId, apiRatings, userRatings: userRatings || null, status });
   } catch (error) {
     const status = error.status || 500;
     res.status(status).json({ error: error.message });
@@ -583,10 +630,19 @@ exports.submitReview = functions.https.onRequest(async (req, res) => {
       reviewedAt: FieldValue.serverTimestamp(),
     });
 
-    // Increment user's totalReviews
-    await db.collection('users').doc(uid).update({
+    // Update user profile: increment totalReviews + accumulate user dimension scores
+    const userUpdate = {
       totalReviews: FieldValue.increment(1),
-    });
+    };
+    if (userRatings.dimensions) {
+      HUMANENESS_DIMENSIONS.forEach(dim => {
+        if (userRatings.dimensions[dim] && typeof userRatings.dimensions[dim].score === 'number') {
+          userUpdate[`dimensionScores.${dim}.userTotal`] = FieldValue.increment(userRatings.dimensions[dim].score);
+          userUpdate[`dimensionScores.${dim}.userCount`] = FieldValue.increment(1);
+        }
+      });
+    }
+    await db.collection('users').doc(uid).update(userUpdate);
 
     res.status(200).json({ ratingId, status: 'reviewed', message: 'Review submitted' });
   } catch (error) {
@@ -618,6 +674,20 @@ exports.user = functions.https.onRequest(async (req, res) => {
     }
 
     const data = userDoc.data();
+
+    // Compute per-dimension averages from accumulated scores
+    const dimensionAverages = {};
+    const rawScores = data.dimensionScores || {};
+    HUMANENESS_DIMENSIONS.forEach(dim => {
+      const d = rawScores[dim] || {};
+      dimensionAverages[dim] = {
+        apiAverage: d.apiCount > 0 ? parseFloat((d.apiTotal / d.apiCount).toFixed(2)) : null,
+        userAverage: d.userCount > 0 ? parseFloat((d.userTotal / d.userCount).toFixed(2)) : null,
+        apiCount: d.apiCount || 0,
+        userCount: d.userCount || 0,
+      };
+    });
+
     res.status(200).json({
       uid: data.uid,
       email: data.email,
@@ -627,6 +697,7 @@ exports.user = functions.https.onRequest(async (req, res) => {
       totalRatings: data.totalRatings,
       totalReviews: data.totalReviews,
       preferredPlatforms: data.preferredPlatforms,
+      dimensionAverages,
     });
   } catch (error) {
     const status = error.status || 500;
