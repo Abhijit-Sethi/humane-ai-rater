@@ -1,0 +1,313 @@
+/* Humane AI Rater - Styles */
+
+/* Main rating container */
+.humane-rater {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  margin-top: 12px;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 20px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+  opacity: 0;
+  transform: translateY(4px);
+  animation: humane-slide-in 0.3s ease forwards;
+  animation-delay: 0.5s;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  z-index: 1000;
+}
+
+@keyframes humane-slide-in {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Label */
+.humane-label {
+  color: #64748B;
+  font-weight: 500;
+  user-select: none;
+}
+
+/* Rating buttons */
+.humane-rate-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.humane-rate-btn:hover {
+  transform: scale(1.15);
+}
+
+.humane-rate-btn:active {
+  transform: scale(0.95);
+}
+
+.humane-rate-btn.humane-positive:hover {
+  background: rgba(34, 197, 94, 0.15);
+}
+
+.humane-rate-btn.humane-negative:hover {
+  background: rgba(239, 68, 68, 0.15);
+}
+
+.humane-emoji {
+  font-size: 18px;
+  line-height: 1;
+}
+
+/* Submitting state */
+.humane-rater.humane-submitting {
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+.humane-rater.humane-submitting::after {
+  content: '';
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border: 2px solid #CBD5E1;
+  border-top-color: #2D5A27;
+  border-radius: 50%;
+  animation: humane-spin 0.8s linear infinite;
+}
+
+@keyframes humane-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Rated state */
+.humane-rater.humane-rated {
+  background: #ECFDF5;
+  border-color: #A7F3D0;
+}
+
+.humane-confirmation {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.humane-thanks {
+  color: #059669;
+}
+
+/* Bounce animation for confirmation */
+.humane-bounce {
+  animation: humane-bounce 0.5s ease;
+}
+
+@keyframes humane-bounce {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.3);
+  }
+}
+
+/* Fade out after confirmation */
+.humane-rater.humane-fade-out {
+  animation: humane-fade-out 0.5s ease forwards;
+  animation-delay: 0.5s;
+}
+
+@keyframes humane-fade-out {
+  to {
+    opacity: 0.4;
+    transform: scale(0.95);
+  }
+}
+
+/* Error message */
+.humane-error {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 12px;
+  background: #FEE2E2;
+  color: #DC2626;
+  border-radius: 6px;
+  font-size: 12px;
+  white-space: nowrap;
+  margin-bottom: 8px;
+  animation: humane-shake 0.4s ease;
+}
+
+@keyframes humane-shake {
+  0%, 100% {
+    transform: translateX(-50%);
+  }
+  25% {
+    transform: translateX(calc(-50% - 4px));
+  }
+  75% {
+    transform: translateX(calc(-50% + 4px));
+  }
+}
+
+/* Tags UI (optional expansion) */
+.humane-tags-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  margin-top: 12px;
+  animation: humane-slide-in 0.3s ease forwards;
+}
+
+.humane-tags-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.humane-checkmark {
+  color: #22C55E;
+  font-size: 16px;
+}
+
+.humane-tags-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.humane-tag-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: white;
+  border: 1px solid #E2E8F0;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 13px;
+  color: #475569;
+}
+
+.humane-tag-option:hover {
+  border-color: #2D5A27;
+  background: #F0FDF4;
+}
+
+.humane-tag-option input {
+  display: none;
+}
+
+.humane-tag-option:has(input:checked) {
+  background: #2D5A27;
+  border-color: #2D5A27;
+  color: white;
+}
+
+.humane-tags-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.humane-skip-btn,
+.humane-submit-tags-btn {
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.humane-skip-btn {
+  background: transparent;
+  border: 1px solid #E2E8F0;
+  color: #64748B;
+}
+
+.humane-skip-btn:hover {
+  background: #F1F5F9;
+}
+
+.humane-submit-tags-btn {
+  background: #2D5A27;
+  border: none;
+  color: white;
+}
+
+.humane-submit-tags-btn:hover {
+  background: #1E3D1A;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .humane-rater {
+    background: #1E293B;
+    border-color: #334155;
+    color: #E2E8F0;
+  }
+
+  .humane-label {
+    color: #94A3B8;
+  }
+
+  .humane-rater.humane-rated {
+    background: #064E3B;
+    border-color: #059669;
+  }
+
+  .humane-tags-container {
+    background: #1E293B;
+    border-color: #334155;
+  }
+
+  .humane-tags-header {
+    color: #E2E8F0;
+  }
+
+  .humane-tag-option {
+    background: #0F172A;
+    border-color: #334155;
+    color: #CBD5E1;
+  }
+
+  .humane-tag-option:hover {
+    background: #064E3B;
+  }
+}
+
+/* Platform-specific adjustments */
+
+/* ChatGPT specific */
+[data-message-author-role="assistant"] .humane-rater {
+  margin-left: 0;
+}
+
+/* Claude specific */
+[data-testid="chat-message-content"] .humane-rater {
+  margin-left: 0;
+}

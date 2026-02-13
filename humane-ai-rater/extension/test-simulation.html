@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ChatGPT Simulation - Extension Test</title>
+  <link rel="stylesheet" href="content/styles.css">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #343541;
+      color: #ECECF1;
+      min-height: 100vh;
+    }
+    .chat-container {
+      max-width: 768px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .header {
+      text-align: center;
+      padding: 20px;
+      border-bottom: 1px solid #4E4F60;
+      margin-bottom: 20px;
+    }
+    .header h1 {
+      font-size: 20px;
+      color: #ECECF1;
+    }
+    .header .badge {
+      display: inline-block;
+      background: #2D5A27;
+      color: white;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 12px;
+      margin-top: 8px;
+    }
+    .message {
+      padding: 20px;
+      margin: 16px 0;
+      border-radius: 8px;
+    }
+    .message.user {
+      background: #40414F;
+    }
+    .message.assistant {
+      background: #444654;
+    }
+    .message-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+    }
+    .avatar.user { background: #5436DA; }
+    .avatar.assistant { background: #19C37D; }
+    .role {
+      font-weight: 600;
+      font-size: 14px;
+    }
+    .content {
+      line-height: 1.6;
+      font-size: 15px;
+    }
+    .content p { margin-bottom: 12px; }
+    .content code {
+      background: #1E1E1E;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: monospace;
+    }
+    .content pre {
+      background: #1E1E1E;
+      padding: 16px;
+      border-radius: 8px;
+      overflow-x: auto;
+      margin: 12px 0;
+    }
+    .input-area {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: #343541;
+      padding: 20px;
+      border-top: 1px solid #4E4F60;
+    }
+    .input-box {
+      max-width: 768px;
+      margin: 0 auto;
+      display: flex;
+      gap: 12px;
+    }
+    .input-box input {
+      flex: 1;
+      padding: 12px 16px;
+      border-radius: 8px;
+      border: 1px solid #4E4F60;
+      background: #40414F;
+      color: #ECECF1;
+      font-size: 15px;
+    }
+    .input-box button {
+      padding: 12px 24px;
+      background: #19C37D;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .test-controls {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: #40414F;
+      padding: 16px;
+      border-radius: 12px;
+      z-index: 1000;
+    }
+    .test-controls h3 {
+      font-size: 14px;
+      margin-bottom: 12px;
+      color: #19C37D;
+    }
+    .test-controls button {
+      display: block;
+      width: 100%;
+      padding: 8px 16px;
+      margin: 8px 0;
+      background: #5436DA;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .test-controls button:hover {
+      background: #6B4DE6;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>🤖 ChatGPT Simulation</h1>
+    <span class="badge">Extension Test Environment</span>
+  </div>
+
+  <div class="chat-container" id="chatContainer">
+    <div class="message user">
+      <div class="message-header">
+        <div class="avatar user">👤</div>
+        <span class="role">You</span>
+      </div>
+      <div class="content">
+        <p>Can you explain what machine learning is in simple terms?</p>
+      </div>
+    </div>
+
+    <div class="message assistant" data-message-author-role="assistant" id="response1">
+      <div class="message-header">
+        <div class="avatar assistant">🤖</div>
+        <span class="role">ChatGPT</span>
+      </div>
+      <div class="content markdown">
+        <p>Machine learning is a type of artificial intelligence where computers learn from examples rather than being explicitly programmed.</p>
+        <p>Think of it like teaching a child to recognize dogs:</p>
+        <p>• <strong>Traditional programming:</strong> You write rules like "has 4 legs, fur, barks = dog"</p>
+        <p>• <strong>Machine learning:</strong> You show thousands of dog pictures and the computer figures out the patterns itself</p>
+        <p>The more examples you provide, the better the computer gets at making predictions!</p>
+      </div>
+    </div>
+
+    <div class="message user">
+      <div class="message-header">
+        <div class="avatar user">👤</div>
+        <span class="role">You</span>
+      </div>
+      <div class="content">
+        <p>Can you show me a simple Python example?</p>
+      </div>
+    </div>
+
+    <div class="message assistant" data-message-author-role="assistant" id="response2">
+      <div class="message-header">
+        <div class="avatar assistant">🤖</div>
+        <span class="role">ChatGPT</span>
+      </div>
+      <div class="content markdown">
+        <p>Here's a simple example using scikit-learn to predict if a fruit is an apple or orange:</p>
+        <pre><code>from sklearn import tree
+
+# Features: [weight in grams, texture (0=bumpy, 1=smooth)]
+features = [[150, 0], [170, 0], [140, 1], [130, 1]]
+labels = ["orange", "orange", "apple", "apple"]
+
+# Train the model
+clf = tree.DecisionTreeClassifier()
+clf.fit(features, labels)
+
+# Predict a new fruit (160g, bumpy)
+print(clf.predict([[160, 0]]))  # Output: ['orange']</code></pre>
+        <p>This trains a decision tree to classify fruits based on weight and texture!</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="test-controls">
+    <h3>🧪 Test Controls</h3>
+    <button onclick="injectContentScript()">Inject Content Script</button>
+    <button onclick="addNewResponse()">Add New Response</button>
+    <button onclick="simulateStreaming()">Simulate Streaming</button>
+  </div>
+
+  <div class="input-area">
+    <div class="input-box">
+      <input type="text" placeholder="Send a message..." id="userInput">
+      <button onclick="sendMessage()">Send</button>
+    </div>
+  </div>
+
+  <script>
+    // Simulated content script (inline version for testing)
+    function injectContentScript() {
+      // Behavioral tracking
+      const behaviorTracker = {
+        pageLoadTime: Date.now(),
+        hasMouseMoved: false,
+        hasTouched: false,
+        hasScrolled: false,
+        maxScrollDepth: 0
+      };
+
+      document.addEventListener('mousemove', () => { behaviorTracker.hasMouseMoved = true; }, { once: true });
+      document.addEventListener('scroll', () => { behaviorTracker.hasScrolled = true; });
+
+      // Device fingerprint (simplified)
+      async function getDeviceFingerprint() {
+        const data = [navigator.userAgent, navigator.language, screen.width + 'x' + screen.height].join('|');
+        const encoder = new TextEncoder();
+        const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(data));
+        return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+      }
+
+      // Inject rating UI
+      function injectRatingUI(element) {
+        if (element.querySelector('.humane-rater')) return;
+
+        element.setAttribute('data-humane-appeared', Date.now().toString());
+
+        const ratingUI = document.createElement('div');
+        ratingUI.className = 'humane-rater';
+        ratingUI.style.animation = 'none';
+        ratingUI.style.opacity = '1';
+        ratingUI.style.transform = 'none';
+        ratingUI.innerHTML = `
+          <span class="humane-label">Rate this</span>
+          <button class="humane-rate-btn humane-positive" data-rating="positive">
+            <span class="humane-emoji">👍</span>
+          </button>
+          <button class="humane-rate-btn humane-negative" data-rating="negative">
+            <span class="humane-emoji">👎</span>
+          </button>
+        `;
+
+        ratingUI.querySelectorAll('button').forEach(btn => {
+          btn.addEventListener('click', async (e) => {
+            const rating = e.currentTarget.dataset.rating;
+            const appearedAt = parseInt(element.getAttribute('data-humane-appeared'));
+            const timeSince = Date.now() - appearedAt;
+
+            // Anti-spoofing check
+            if (timeSince < 500) {
+              alert('Please take time to read the response first!');
+              return;
+            }
+
+            // Simulate submission
+            ratingUI.classList.add('humane-submitting');
+
+            const deviceHash = await getDeviceFingerprint();
+            const ratingData = {
+              rating,
+              platform: 'chatgpt',
+              timestamp: Date.now(),
+              deviceHash: deviceHash.substring(0, 16),
+              responseLength: element.textContent.length,
+              viewportTime: timeSince,
+              behaviorSignals: { ...behaviorTracker }
+            };
+
+            console.log('📊 Rating submitted:', ratingData);
+
+            // Show confirmation
+            setTimeout(() => {
+              const emoji = rating === 'positive' ? '👍' : '👎';
+              const color = rating === 'positive' ? '#22C55E' : '#EF4444';
+              const bgColor = rating === 'positive' ? '#ECFDF5' : '#FEF2F2';
+
+              ratingUI.classList.remove('humane-submitting');
+              ratingUI.classList.add('humane-rated');
+              ratingUI.style.background = bgColor;
+              ratingUI.innerHTML = `
+                <div class="humane-confirmation" style="color: ${color}">
+                  <span class="humane-emoji humane-bounce">${emoji}</span>
+                  <span class="humane-thanks" style="color: ${rating === 'positive' ? '#059669' : '#DC2626'}">Thanks!</span>
+                </div>
+              `;
+            }, 500);
+          });
+        });
+
+        element.style.position = 'relative';
+        element.appendChild(ratingUI);
+      }
+
+      // Find and inject into existing responses
+      document.querySelectorAll('[data-message-author-role="assistant"]').forEach(injectRatingUI);
+
+      // Observe for new responses
+      const observer = new MutationObserver(() => {
+        document.querySelectorAll('[data-message-author-role="assistant"]').forEach(injectRatingUI);
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
+
+      console.log('✅ Humane AI Rater content script injected!');
+      alert('Content script injected! Rating buttons should now appear on AI responses.');
+    }
+
+    // Add a new response
+    function addNewResponse() {
+      const container = document.getElementById('chatContainer');
+
+      const userMsg = document.createElement('div');
+      userMsg.className = 'message user';
+      userMsg.innerHTML = `
+        <div class="message-header">
+          <div class="avatar user">👤</div>
+          <span class="role">You</span>
+        </div>
+        <div class="content">
+          <p>What are the main types of machine learning?</p>
+        </div>
+      `;
+      container.appendChild(userMsg);
+
+      const assistantMsg = document.createElement('div');
+      assistantMsg.className = 'message assistant';
+      assistantMsg.setAttribute('data-message-author-role', 'assistant');
+      assistantMsg.innerHTML = `
+        <div class="message-header">
+          <div class="avatar assistant">🤖</div>
+          <span class="role">ChatGPT</span>
+        </div>
+        <div class="content markdown">
+          <p>There are three main types of machine learning:</p>
+          <p><strong>1. Supervised Learning</strong> - The model learns from labeled examples (input → known output)</p>
+          <p><strong>2. Unsupervised Learning</strong> - The model finds patterns in unlabeled data</p>
+          <p><strong>3. Reinforcement Learning</strong> - The model learns through trial and error with rewards</p>
+        </div>
+      `;
+      container.appendChild(assistantMsg);
+
+      assistantMsg.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // Simulate streaming response
+    function simulateStreaming() {
+      const container = document.getElementById('chatContainer');
+
+      const assistantMsg = document.createElement('div');
+      assistantMsg.className = 'message assistant';
+      assistantMsg.setAttribute('data-message-author-role', 'assistant');
+      assistantMsg.setAttribute('data-is-streaming', 'true');
+      assistantMsg.innerHTML = `
+        <div class="message-header">
+          <div class="avatar assistant">🤖</div>
+          <span class="role">ChatGPT</span>
+        </div>
+        <div class="content markdown" id="streamingContent">
+          <p class="streaming-cursor">▌</p>
+        </div>
+      `;
+      container.appendChild(assistantMsg);
+      assistantMsg.scrollIntoView({ behavior: 'smooth' });
+
+      const text = "This is a streaming response that appears word by word, simulating how ChatGPT actually works. The rating button should only appear after streaming completes!";
+      const words = text.split(' ');
+      let i = 0;
+
+      const streamContent = document.getElementById('streamingContent');
+      streamContent.innerHTML = '';
+
+      const interval = setInterval(() => {
+        if (i < words.length) {
+          streamContent.innerHTML = '<p>' + words.slice(0, i + 1).join(' ') + ' ▌</p>';
+          i++;
+        } else {
+          clearInterval(interval);
+          streamContent.innerHTML = '<p>' + text + '</p>';
+          assistantMsg.removeAttribute('data-is-streaming');
+          console.log('Streaming complete - rating button should appear now');
+        }
+      }, 100);
+    }
+
+    function sendMessage() {
+      const input = document.getElementById('userInput');
+      if (input.value.trim()) {
+        addNewResponse();
+        input.value = '';
+      }
+    }
+
+    document.getElementById('userInput').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') sendMessage();
+    });
+  </script>
+</body>
+</html>

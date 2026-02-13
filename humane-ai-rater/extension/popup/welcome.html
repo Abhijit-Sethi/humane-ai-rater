@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Welcome to Humane AI Rater</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #F0FDF4 0%, #ECFEFF 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .welcome-card {
+      background: white;
+      border-radius: 24px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+      max-width: 480px;
+      width: 100%;
+      overflow: hidden;
+    }
+
+    .welcome-header {
+      background: linear-gradient(135deg, #2D5A27 0%, #3D7A35 100%);
+      color: white;
+      padding: 40px;
+      text-align: center;
+    }
+
+    .logo-large {
+      font-size: 64px;
+      margin-bottom: 16px;
+    }
+
+    .welcome-header h1 {
+      font-size: 28px;
+      margin-bottom: 8px;
+    }
+
+    .welcome-header p {
+      font-size: 16px;
+      opacity: 0.9;
+    }
+
+    .welcome-content {
+      padding: 32px;
+    }
+
+    .section {
+      margin-bottom: 28px;
+    }
+
+    .section h2 {
+      font-size: 16px;
+      font-weight: 700;
+      color: #1E293B;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .section-icon {
+      font-size: 20px;
+    }
+
+    .list {
+      list-style: none;
+    }
+
+    .list li {
+      padding: 8px 0 8px 28px;
+      position: relative;
+      font-size: 15px;
+      color: #475569;
+      line-height: 1.5;
+    }
+
+    .list li::before {
+      position: absolute;
+      left: 0;
+      font-size: 16px;
+    }
+
+    .list.positive li::before {
+      content: '✓';
+      color: #22C55E;
+    }
+
+    .list.negative li::before {
+      content: '✗';
+      color: #EF4444;
+    }
+
+    .how-it-works {
+      display: flex;
+      gap: 16px;
+      margin-top: 12px;
+    }
+
+    .step {
+      flex: 1;
+      text-align: center;
+      padding: 16px;
+      background: #F8FAFC;
+      border-radius: 12px;
+    }
+
+    .step-number {
+      width: 32px;
+      height: 32px;
+      background: #2D5A27;
+      color: white;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .step-icon {
+      font-size: 24px;
+      margin-bottom: 8px;
+    }
+
+    .step-text {
+      font-size: 13px;
+      color: #64748B;
+    }
+
+    .cta-section {
+      text-align: center;
+      padding-top: 8px;
+    }
+
+    .accept-btn {
+      background: linear-gradient(135deg, #2D5A27 0%, #3D7A35 100%);
+      color: white;
+      border: none;
+      padding: 16px 48px;
+      font-size: 16px;
+      font-weight: 600;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .accept-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(45, 90, 39, 0.3);
+    }
+
+    .source-link {
+      display: block;
+      margin-top: 16px;
+      color: #64748B;
+      text-decoration: none;
+      font-size: 14px;
+    }
+
+    .source-link:hover {
+      color: #2D5A27;
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="welcome-card">
+    <div class="welcome-header">
+      <div class="logo-large">🌱</div>
+      <h1>Humane AI Rater</h1>
+      <p>Help make AI more respectful of your time and attention</p>
+    </div>
+
+    <div class="welcome-content">
+      <div class="section">
+        <h2><span class="section-icon">🎯</span> How It Works</h2>
+        <div class="how-it-works">
+          <div class="step">
+            <div class="step-number">1</div>
+            <div class="step-icon">💬</div>
+            <div class="step-text">Chat with an AI</div>
+          </div>
+          <div class="step">
+            <div class="step-number">2</div>
+            <div class="step-icon">👍👎</div>
+            <div class="step-text">Rate responses</div>
+          </div>
+          <div class="step">
+            <div class="step-number">3</div>
+            <div class="step-icon">📊</div>
+            <div class="step-text">See the scores</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2><span class="section-icon">✓</span> What We Collect</h2>
+        <ul class="list positive">
+          <li>Your thumbs up/down rating</li>
+          <li>Which AI platform (ChatGPT, Claude, etc.)</li>
+          <li>Optional tags you select</li>
+        </ul>
+      </div>
+
+      <div class="section">
+        <h2><span class="section-icon">🔒</span> What We NEVER Collect</h2>
+        <ul class="list negative">
+          <li>Your conversations or prompts</li>
+          <li>Personal information</li>
+          <li>Browsing history</li>
+          <li>Cookies or tracking data</li>
+        </ul>
+      </div>
+
+      <div class="cta-section">
+        <button class="accept-btn" id="acceptBtn">Accept & Start Rating</button>
+        <a href="https://github.com/your-repo/humane-ai-rater" target="_blank" class="source-link">
+          View Source Code →
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.getElementById('acceptBtn').addEventListener('click', () => {
+      // Mark as accepted
+      chrome.storage.local.set({ privacyAccepted: true, acceptedAt: Date.now() });
+      // Close this tab
+      window.close();
+    });
+  </script>
+</body>
+</html>
