@@ -25,6 +25,18 @@
       "js": ["shared/humanebench.js", "shared/storage.js", "content/overlay.js", "content/claude.js"],
       "css": ["styles/overlay.css"],
       "run_at": "document_idle"
+    },
+    {
+      "matches": ["*://grok.com/*", "*://x.com/*", "*://twitter.com/*"],
+      "js": ["shared/humanebench.js", "shared/storage.js", "content/overlay.js", "content/grok.js"],
+      "css": ["styles/overlay.css"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["*://chat.deepseek.com/*"],
+      "js": ["shared/humanebench.js", "shared/storage.js", "content/overlay.js", "content/deepseek.js"],
+      "css": ["styles/overlay.css"],
+      "run_at": "document_idle"
     }
   ],
   "action": {
