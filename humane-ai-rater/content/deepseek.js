@@ -202,9 +202,10 @@
 
     const userPrompt = getUserPrompt(responseElement);
 
-    // Find the best insertion point
-    const dsMarkdown = responseElement.querySelector('.ds-markdown') || responseElement;
-    humaneOverlay.injectRateButton(dsMarkdown, userPrompt, aiResponse, MODEL_NAME);
+    // Inject at the end of .ds-message container (after the markdown content)
+    // This ensures the button appears at the bottom of the full response
+    const messageContainer = responseElement.closest('.ds-message') || responseElement;
+    humaneOverlay.injectRateButton(messageContainer, userPrompt, aiResponse, MODEL_NAME);
   }
 
   /**
