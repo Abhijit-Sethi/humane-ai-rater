@@ -12,52 +12,33 @@
 
   /**
    * Platform-specific configuration for Deepseek
-   * Deepseek follows common chat UI patterns similar to ChatGPT
+   * Based on actual Deepseek DOM structure (Feb 2025)
    */
   const DEEPSEEK_CONFIG = {
-    // Response selectors - Deepseek typically marks assistant messages
+    // Response selectors - Deepseek uses .ds-message and .ds-markdown
     responseSelectors: [
-      '[data-message-author-role="assistant"]',
-      '[data-role="assistant"]',
-      '[data-testid="assistant-message"]',
-      '.assistant-message',
-      '[class*="AssistantMessage"]',
-      '[class*="assistant-message"]',
-      // Deepseek-specific patterns
-      '[data-testid="deepseek-response"]',
-      '.deepseek-message.assistant',
-      '[class*="bot-message"]',
-      '[class*="ai-message"]',
-      // Markdown/prose containers within assistant context
-      '.markdown-body'
+      '.ds-message',                    // Main message container
+      '.ds-markdown'                    // Markdown content
     ],
 
+    // Content selectors within a response
+    contentSelectors: [
+      '.ds-markdown',
+      '.ds-markdown-paragraph'
+    ],
+
+    // User message selectors (need to identify from DOM - likely different class)
     userSelectors: [
-      '[data-message-author-role="user"]',
-      '[data-role="user"]',
-      '[data-testid="user-message"]',
-      '.user-message',
-      '[class*="UserMessage"]',
-      '[class*="user-message"]',
-      '[class*="human-message"]'
-    ],
-
-    // Conversation/turn container selectors
-    turnSelectors: [
-      '[data-testid^="conversation-turn"]',
-      '[data-testid="message-container"]',
-      '.message-container',
-      '.chat-message',
-      '[class*="ConversationTurn"]'
+      '.ds-message-user',               // Guessed pattern
+      '[class*="user"]'
     ],
 
     // Streaming indicators
     streamingSelectors: [
       '[data-streaming="true"]',
-      '[data-is-streaming="true"]',
       '.streaming',
       '[class*="streaming"]',
-      '.typing-indicator'
+      '[class*="loading"]'
     ]
   };
 
@@ -65,23 +46,25 @@
    * Check if an element is a Deepseek assistant response
    */
   function isAssistantResponse(element) {
-    // Check data attributes
-    if (element.getAttribute('data-message-author-role') === 'assistant' ||
-        element.getAttribute('data-role') === 'assistant') {
+    // Check for .ds-message class (main message container)
+    if (element.classList.contains('ds-message')) {
+      // Check it's not a user message (user messages may have different structure)
+      const className = element.className || '';
+      if (className.includes('user')) return false;
       return true;
     }
 
-    // Check for assistant-related classes
-    const className = (element.className || '').toLowerCase();
-    if (className.includes('assistant') ||
-        className.includes('bot-message') ||
-        className.includes('ai-message')) {
+    // Check for .ds-markdown (assistant responses have markdown)
+    if (element.classList.contains('ds-markdown')) {
       return true;
     }
 
-    // Check parent for role context
-    const parent = element.closest('[data-role="assistant"], [data-message-author-role="assistant"]');
-    if (parent) return true;
+    // Check parent for ds-message
+    const parent = element.closest('.ds-message');
+    if (parent) {
+      const parentClass = parent.className || '';
+      if (!parentClass.includes('user')) return true;
+    }
 
     return false;
   }
@@ -126,47 +109,54 @@
    * Extract the user prompt that precedes an assistant response.
    */
   function getUserPrompt(assistantElement) {
-    // Strategy 1: Find turn container and look for previous turn with user role
-    for (const turnSel of DEEPSEEK_CONFIG.turnSelectors) {
-      const turnContainer = assistantElement.closest(turnSel);
-      if (turnContainer) {
-        let prev = turnContainer.previousElementSibling;
-        while (prev) {
-          for (const userSel of DEEPSEEK_CONFIG.userSelectors) {
-            const userMsg = prev.matches(userSel) ? prev : prev.querySelector(userSel);
-            if (userMsg) return userMsg.innerText.trim();
+    // Strategy 1: Find the .ds-message container and walk backward
+    const messageContainer = assistantElement.closest('.ds-message') || assistantElement;
+
+    let current = messageContainer;
+    while (current) {
+      let prev = current.previousElementSibling;
+      while (prev) {
+        // Check if this is a user message (doesn't have .ds-markdown typically)
+        // Or has user-related classes
+        const hasMarkdown = prev.querySelector('.ds-markdown');
+        const className = (prev.className || '').toLowerCase();
+
+        // User messages likely don't have the .ds-markdown structure
+        // or have specific user class indicators
+        if (!hasMarkdown || className.includes('user')) {
+          const text = prev.innerText.trim();
+          if (text && text.length > 0 && text.length < 5000) {
+            return text;
           }
-          prev = prev.previousElementSibling;
         }
+        prev = prev.previousElementSibling;
       }
+      current = current.parentElement;
+      if (current === document.body) break;
     }
 
-    // Strategy 2: Walk backward through all messages
-    const allMessages = document.querySelectorAll(
-      DEEPSEEK_CONFIG.responseSelectors.concat(DEEPSEEK_CONFIG.userSelectors).join(', ')
-    );
+    // Strategy 2: Get all .ds-message elements and find the one before
+    const allMessages = document.querySelectorAll('.ds-message');
     const msgArray = Array.from(allMessages);
-    const assistantIndex = msgArray.indexOf(assistantElement);
+    const currentIndex = msgArray.indexOf(messageContainer);
 
-    if (assistantIndex > 0) {
-      for (let i = assistantIndex - 1; i >= 0; i--) {
-        const msg = msgArray[i];
-        if (msg.getAttribute('data-message-author-role') === 'user' ||
-            msg.getAttribute('data-role') === 'user' ||
-            (msg.className || '').toLowerCase().includes('user')) {
-          return msg.innerText.trim();
-        }
+    if (currentIndex > 0) {
+      const prevMsg = msgArray[currentIndex - 1];
+      const text = prevMsg.innerText.trim();
+      if (text && text.length > 0 && text.length < 5000) {
+        return text;
       }
     }
 
-    // Strategy 3: Get the last user message on the page
-    for (const userSel of DEEPSEEK_CONFIG.userSelectors) {
-      try {
-        const allUserMsgs = document.querySelectorAll(userSel);
-        if (allUserMsgs.length > 0) {
-          return allUserMsgs[allUserMsgs.length - 1].innerText.trim();
+    // Strategy 3: Look for any text input or user content area
+    const userInputs = document.querySelectorAll('[class*="user"], [class*="input"], [class*="prompt"]');
+    for (const input of userInputs) {
+      if (!input.querySelector('.ds-markdown')) {
+        const text = input.innerText.trim();
+        if (text && text.length > 0 && text.length < 2000) {
+          return text;
         }
-      } catch (e) { /* invalid selector */ }
+      }
     }
 
     return '(User prompt not found)';
@@ -176,13 +166,23 @@
    * Get the text content of an assistant response
    */
   function getResponseText(element) {
-    // Look for markdown/prose content first
-    const markdownContent = element.querySelector(
-      '.markdown-body, .prose, .markdown, [class*="content"], [class*="text"]'
-    );
-    if (markdownContent) {
-      return markdownContent.innerText.trim();
+    // Look for .ds-markdown content first
+    const dsMarkdown = element.querySelector('.ds-markdown');
+    if (dsMarkdown) {
+      return dsMarkdown.innerText.trim();
     }
+
+    // Try .ds-markdown-paragraph
+    const paragraph = element.querySelector('.ds-markdown-paragraph');
+    if (paragraph) {
+      return paragraph.innerText.trim();
+    }
+
+    // If element itself is .ds-markdown
+    if (element.classList.contains('ds-markdown')) {
+      return element.innerText.trim();
+    }
+
     return element.innerText.trim();
   }
 
@@ -195,9 +195,6 @@
     // Skip if still streaming
     if (isStreaming(responseElement)) return;
 
-    // Verify this is actually an assistant response
-    if (!isAssistantResponse(responseElement)) return;
-
     responseElement.setAttribute(PROCESSED_ATTR, 'true');
 
     const aiResponse = getResponseText(responseElement);
@@ -205,7 +202,9 @@
 
     const userPrompt = getUserPrompt(responseElement);
 
-    humaneOverlay.injectRateButton(responseElement, userPrompt, aiResponse, MODEL_NAME);
+    // Find the best insertion point
+    const dsMarkdown = responseElement.querySelector('.ds-markdown') || responseElement;
+    humaneOverlay.injectRateButton(dsMarkdown, userPrompt, aiResponse, MODEL_NAME);
   }
 
   /**
@@ -214,20 +213,33 @@
   function scanForResponses() {
     const seen = new Set();
 
-    // Try all response selectors
-    for (const selector of DEEPSEEK_CONFIG.responseSelectors) {
-      try {
-        const responses = document.querySelectorAll(selector);
-        responses.forEach(el => {
-          if (!seen.has(el) && !el.hasAttribute(PROCESSED_ATTR)) {
-            seen.add(el);
-            processResponse(el);
-          }
-        });
-      } catch (e) {
-        // Invalid selector, skip
+    // Primary: find all .ds-message elements that contain .ds-markdown (assistant responses)
+    const allMessages = document.querySelectorAll('.ds-message');
+    allMessages.forEach(el => {
+      if (seen.has(el) || el.hasAttribute(PROCESSED_ATTR)) return;
+
+      // Only process messages that have .ds-markdown (assistant responses)
+      const hasMarkdown = el.querySelector('.ds-markdown');
+      if (hasMarkdown) {
+        seen.add(el);
+        processResponse(el);
       }
-    }
+    });
+
+    // Fallback: find orphan .ds-markdown elements
+    const markdownElements = document.querySelectorAll('.ds-markdown');
+    markdownElements.forEach(el => {
+      const parent = el.closest('.ds-message');
+      if (parent) {
+        if (!seen.has(parent) && !parent.hasAttribute(PROCESSED_ATTR)) {
+          seen.add(parent);
+          processResponse(parent);
+        }
+      } else if (!seen.has(el) && !el.hasAttribute(PROCESSED_ATTR)) {
+        seen.add(el);
+        processResponse(el);
+      }
+    });
   }
 
   /**
@@ -258,6 +270,7 @@
 
   // Initial scan + observer
   function init() {
+    console.log('[Humane AI Rater] Deepseek content script loaded');
     scanForResponses();
     observeNewResponses();
 
