@@ -1,30 +1,13 @@
-// Humane AI Rater - Background Service Worker
-
-// Firebase configuration (replace with your actual config)
-const FIREBASE_CONFIG = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID",
-  databaseURL: "https://YOUR_PROJECT.firebaseio.com"
-};
+// Humane AI Rater - Background Service Worker (Local-Only Version)
+// All data stored locally in chrome.storage.local - no network requests
 
 // Listen for messages from content scripts
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'SUBMIT_RATING') {
-    submitRatingToFirebase(message.data)
+    saveRatingLocally(message.data)
       .then(result => sendResponse({ success: true, result }))
       .catch(error => sendResponse({ success: false, error: error.message }));
     return true; // Keep channel open for async response
-  }
-
-  if (message.type === 'GET_AGGREGATES') {
-    fetchAggregates()
-      .then(data => sendResponse({ success: true, data }))
-      .catch(error => sendResponse({ success: false, error: error.message }));
-    return true;
   }
 
   if (message.type === 'GET_STATS') {
@@ -35,89 +18,75 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
-// Submit rating to Firebase
-async function submitRatingToFirebase(ratingData) {
-  const url = `${FIREBASE_CONFIG.databaseURL}/ratings.json`;
-
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      ...ratingData,
-      submittedAt: Date.now(),
-      verified: false // Will be verified by Cloud Function
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Firebase error: ${response.status}`);
-  }
-
-  // Update local stats
-  await updateLocalStats(ratingData);
-
-  return await response.json();
-}
-
-// Fetch aggregate scores for leaderboard
-async function fetchAggregates() {
-  const url = `${FIREBASE_CONFIG.databaseURL}/aggregates.json`;
-
-  const response = await fetch(url);
-
-  if (!response.ok) {
-    throw new Error(`Firebase error: ${response.status}`);
-  }
-
-  return await response.json();
-}
-
-// Update local statistics
-async function updateLocalStats(ratingData) {
-  const result = await chrome.storage.local.get(['stats']);
+// Save rating to local storage
+async function saveRatingLocally(ratingData) {
+  const result = await chrome.storage.local.get(['ratings', 'stats']);
+  const ratings = result.ratings || [];
   const stats = result.stats || {
     totalRatings: 0,
     byPlatform: {},
     today: { date: new Date().toDateString(), count: 0 }
   };
 
-  // Reset daily count if new day
-  if (stats.today.date !== new Date().toDateString()) {
-    stats.today = { date: new Date().toDateString(), count: 0 };
+  // Add new rating
+  ratings.push({
+    id: crypto.randomUUID(),
+    rating: ratingData.rating,
+    platform: ratingData.platform,
+    responseLength: ratingData.responseLength,
+    timestamp: Date.now()
+  });
+
+  // Keep only last 1000 ratings to avoid storage limits
+  if (ratings.length > 1000) {
+    ratings.splice(0, ratings.length - 1000);
   }
 
+  // Update total stats
   stats.totalRatings++;
-  stats.today.count++;
 
-  // Update platform stats
+  // Update platform-specific stats
   if (!stats.byPlatform[ratingData.platform]) {
     stats.byPlatform[ratingData.platform] = { positive: 0, negative: 0 };
   }
   stats.byPlatform[ratingData.platform][ratingData.rating]++;
 
-  await chrome.storage.local.set({ stats });
+  // Update daily count (reset if new day)
+  if (stats.today.date !== new Date().toDateString()) {
+    stats.today = { date: new Date().toDateString(), count: 0 };
+  }
+  stats.today.count++;
+
+  await chrome.storage.local.set({ ratings, stats });
   return stats;
 }
 
 // Get local statistics
 async function getLocalStats() {
-  const result = await chrome.storage.local.get(['stats', 'deviceHash']);
-  return {
-    stats: result.stats || { totalRatings: 0, byPlatform: {}, today: { count: 0 } },
-    deviceHash: result.deviceHash
+  const result = await chrome.storage.local.get(['stats']);
+  return result.stats || {
+    totalRatings: 0,
+    byPlatform: {},
+    today: { date: new Date().toDateString(), count: 0 }
   };
 }
 
 // Extension install handler
 chrome.runtime.onInstalled.addListener((details) => {
   if (details.reason === 'install') {
-    // Show welcome/privacy notice page
-    chrome.tabs.create({
-      url: 'popup/welcome.html'
+    // Initialize storage with empty stats
+    chrome.storage.local.set({
+      ratings: [],
+      stats: {
+        totalRatings: 0,
+        byPlatform: {},
+        today: { date: new Date().toDateString(), count: 0 }
+      }
     });
+
+    // Could show welcome page here if desired
+    // chrome.tabs.create({ url: 'popup/welcome.html' });
   }
 });
 
-console.log('Humane AI Rater background service worker initialized');
+console.log('Humane AI Rater background service worker initialized (local-only mode)');

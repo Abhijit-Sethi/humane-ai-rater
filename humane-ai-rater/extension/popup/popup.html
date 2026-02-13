@@ -13,7 +13,7 @@
         <span class="logo-icon">🌱</span>
         <h1>Humane AI</h1>
       </div>
-      <p class="tagline">Community Humaneness Scores</p>
+      <p class="tagline">Your Personal Humaneness Scores</p>
     </header>
 
     <main class="leaderboard" id="leaderboard">
@@ -25,13 +25,15 @@
 
     <footer class="footer">
       <div class="stats">
-        <span id="totalRatings">0</span> community ratings
+        <span id="totalRatings">0</span> total ratings
       </div>
       <div class="your-contribution">
         You've rated <span id="yourRatings">0</span> responses today
       </div>
       <div class="links">
         <a href="#" id="privacyLink">Privacy</a>
+        <span class="separator">•</span>
+        <a href="#" id="clearDataBtn">Clear Data</a>
         <span class="separator">•</span>
         <a href="https://github.com/your-repo/humane-ai-rater" target="_blank">Source</a>
       </div>
@@ -42,21 +44,25 @@
     <div class="privacy-content">
       <h2>Privacy Notice</h2>
       <div class="privacy-section">
-        <h3>What we collect</h3>
+        <h3>100% Local Storage</h3>
+        <p class="privacy-note">All your data stays on your device. Nothing is sent to any server.</p>
+      </div>
+      <div class="privacy-section">
+        <h3>What we store locally</h3>
         <ul class="collect-list positive">
-          <li>Your thumbs up/down rating</li>
+          <li>Your thumbs up/down ratings</li>
           <li>Which AI platform (ChatGPT, Claude)</li>
-          <li>Optional tags you select</li>
-          <li>Anonymous device fingerprint (for anti-spam)</li>
+          <li>Response length (approximate)</li>
+          <li>Timestamp of rating</li>
         </ul>
       </div>
       <div class="privacy-section">
-        <h3>What we NEVER collect</h3>
+        <h3>What we NEVER store</h3>
         <ul class="collect-list negative">
           <li>Your conversations or prompts</li>
           <li>Personal information</li>
           <li>Browsing history</li>
-          <li>Cookies or tracking data</li>
+          <li>Any data sent to external servers</li>
         </ul>
       </div>
       <button class="close-modal" id="closePrivacy">Got it</button>

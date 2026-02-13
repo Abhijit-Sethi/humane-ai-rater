@@ -308,6 +308,10 @@
 }
 
 /* Claude specific */
-[data-testid="chat-message-content"] .humane-rater {
-  margin-left: 0;
+[data-is-streaming="false"] .humane-rater {
+  margin-left: 8px;
+}
+
+.font-claude-response .humane-rater {
+  margin-left: 8px;
 }

@@ -1,7 +1,7 @@
-// Humane AI Rater - Popup Script
+// Humane AI Rater - Popup Script (Local-Only Version)
+// Displays personal rating statistics from local storage
 
 document.addEventListener('DOMContentLoaded', async () => {
-  await loadLeaderboard();
   await loadLocalStats();
   setupEventListeners();
 });
@@ -14,59 +14,59 @@ const PLATFORM_CONFIG = {
   grok: { name: 'Grok', icon: '🚀' }
 };
 
-// Load leaderboard data
-async function loadLeaderboard() {
+// Load local statistics and render leaderboard
+async function loadLocalStats() {
   const leaderboardEl = document.getElementById('leaderboard');
 
   try {
-    // Try to get data from background script
-    const response = await chrome.runtime.sendMessage({ type: 'GET_AGGREGATES' });
+    const response = await chrome.runtime.sendMessage({ type: 'GET_STATS' });
 
-    if (response.success && response.data) {
-      renderLeaderboard(response.data);
+    if (response.success && response.stats && response.stats.totalRatings > 0) {
+      renderLeaderboard(response.stats);
     } else {
-      // Show demo/placeholder data if no real data yet
-      renderDemoLeaderboard();
+      renderNoData();
     }
   } catch (error) {
-    console.error('Error loading leaderboard:', error);
-    renderDemoLeaderboard();
+    console.error('Error loading stats:', error);
+    renderNoData();
   }
 }
 
-// Render leaderboard with real data
-function renderLeaderboard(data) {
+// Render leaderboard with local data
+function renderLeaderboard(stats) {
   const leaderboardEl = document.getElementById('leaderboard');
 
-  // Convert to array and calculate scores
-  const platforms = Object.entries(data)
-    .map(([key, stats]) => ({
-      key,
-      ...PLATFORM_CONFIG[key],
-      totalRatings: stats.totalRatings || 0,
-      positiveCount: stats.positiveCount || 0,
-      negativeCount: stats.negativeCount || 0,
-      score: stats.totalRatings > 0
-        ? Math.round((stats.positiveCount / stats.totalRatings) * 100)
-        : 0,
-      weeklyTrend: stats.weeklyTrend || []
-    }))
+  // Convert platform stats to array and calculate scores
+  const platforms = Object.entries(stats.byPlatform)
+    .map(([key, platformStats]) => {
+      const total = platformStats.positive + platformStats.negative;
+      return {
+        key,
+        ...PLATFORM_CONFIG[key],
+        totalRatings: total,
+        positiveCount: platformStats.positive,
+        negativeCount: platformStats.negative,
+        score: total > 0 ? Math.round((platformStats.positive / total) * 100) : 0
+      };
+    })
     .filter(p => p.totalRatings > 0)
     .sort((a, b) => b.score - a.score);
 
   if (platforms.length === 0) {
-    renderDemoLeaderboard();
+    renderNoData();
     return;
   }
 
-  // Update total ratings
-  const totalRatings = platforms.reduce((sum, p) => sum + p.totalRatings, 0);
-  document.getElementById('totalRatings').textContent = formatNumber(totalRatings);
+  // Update total ratings display
+  document.getElementById('totalRatings').textContent = formatNumber(stats.totalRatings);
 
-  // Render cards
+  // Update today's ratings
+  const todayCount = stats.today?.count || 0;
+  document.getElementById('yourRatings').textContent = todayCount;
+
+  // Render platform cards
   leaderboardEl.innerHTML = platforms.map((platform, index) => {
     const isLeader = index === 0;
-    const trend = calculateTrend(platform.weeklyTrend);
     const scoreClass = platform.score >= 70 ? 'positive' : platform.score >= 50 ? 'neutral' : 'negative';
 
     return `
@@ -79,66 +79,34 @@ function renderLeaderboard(data) {
         <div class="platform-score">
           <div class="score-value ${scoreClass}">${platform.score}%</div>
           <div class="score-label">Humane</div>
-          ${trend !== 0 ? `
-            <div class="score-trend ${trend > 0 ? 'up' : 'down'}">
-              ${trend > 0 ? '↑' : '↓'} ${Math.abs(trend)}% this week
-            </div>
-          ` : ''}
+          <div class="score-breakdown">
+            <span class="positive-count">👍 ${platform.positiveCount}</span>
+            <span class="negative-count">👎 ${platform.negativeCount}</span>
+          </div>
         </div>
       </div>
     `;
   }).join('');
 }
 
-// Render demo leaderboard when no data
-function renderDemoLeaderboard() {
+// Render no data state
+function renderNoData() {
   const leaderboardEl = document.getElementById('leaderboard');
-
-  // Demo data to show UI
-  const demoData = [
-    { key: 'claude', name: 'Claude', icon: '🧠', score: 78, ratings: 0 },
-    { key: 'chatgpt', name: 'ChatGPT', icon: '🤖', score: 72, ratings: 0 }
-  ];
 
   leaderboardEl.innerHTML = `
     <div class="no-data">
       <div class="no-data-icon">📊</div>
       <div class="no-data-text">
-        Start rating AI responses to see community scores here!
+        Start rating AI responses to see your personal scores here!
         <br><br>
         Visit <strong>ChatGPT</strong> or <strong>Claude</strong> and rate responses with 👍 or 👎
       </div>
     </div>
   `;
-}
 
-// Calculate trend from weekly data
-function calculateTrend(weeklyTrend) {
-  if (!weeklyTrend || weeklyTrend.length < 2) return 0;
-
-  const recent = weeklyTrend.slice(-3);
-  const older = weeklyTrend.slice(0, -3);
-
-  if (recent.length === 0 || older.length === 0) return 0;
-
-  const recentAvg = recent.reduce((a, b) => a + b, 0) / recent.length;
-  const olderAvg = older.reduce((a, b) => a + b, 0) / older.length;
-
-  return Math.round(recentAvg - olderAvg);
-}
-
-// Load local user stats
-async function loadLocalStats() {
-  try {
-    const response = await chrome.runtime.sendMessage({ type: 'GET_STATS' });
-
-    if (response.success && response.stats) {
-      const todayCount = response.stats.today?.count || 0;
-      document.getElementById('yourRatings').textContent = todayCount;
-    }
-  } catch (error) {
-    console.error('Error loading local stats:', error);
-  }
+  // Reset counters
+  document.getElementById('totalRatings').textContent = '0';
+  document.getElementById('yourRatings').textContent = '0';
 }
 
 // Format large numbers
@@ -173,4 +141,23 @@ function setupEventListeners() {
       privacyModal.classList.remove('active');
     }
   });
+
+  // Clear data button
+  const clearDataBtn = document.getElementById('clearDataBtn');
+  if (clearDataBtn) {
+    clearDataBtn.addEventListener('click', async () => {
+      if (confirm('Are you sure you want to clear all your rating data? This cannot be undone.')) {
+        await chrome.storage.local.clear();
+        await chrome.storage.local.set({
+          ratings: [],
+          stats: {
+            totalRatings: 0,
+            byPlatform: {},
+            today: { date: new Date().toDateString(), count: 0 }
+          }
+        });
+        await loadLocalStats();
+      }
+    });
+  }
 }

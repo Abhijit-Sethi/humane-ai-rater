@@ -7,7 +7,7 @@
   if (window.humaneAIRaterInitialized) return;
   window.humaneAIRaterInitialized = true;
 
-  // Platform configurations with selectors
+  // Platform configurations with selectors (updated Feb 2025)
   const PLATFORMS = {
     chatgpt: {
       hosts: ['chat.openai.com', 'chatgpt.com'],
@@ -18,12 +18,19 @@
     },
     claude: {
       hosts: ['claude.ai'],
-      responseSelector: '[data-testid="chat-message-content"]',
-      containerSelector: '.prose',
+      // Updated selector: target the response container with data-is-streaming attribute
+      responseSelector: '[data-is-streaming="false"].group.relative',
+      containerSelector: '.font-claude-response',
       streamingIndicator: '[data-is-streaming="true"]',
       name: 'Claude'
     }
   };
+
+  // Debug logging
+  const DEBUG = true;
+  function debugLog(...args) {
+    if (DEBUG) console.log('[Humane AI Rater]', ...args);
+  }
 
   // Behavioral tracking for anti-spoofing
   const behaviorTracker = {
@@ -74,7 +81,8 @@
     return;
   }
 
-  console.log(`Humane AI Rater: Detected ${platform.config.name}`);
+  debugLog(`Detected ${platform.config.name}`);
+  debugLog('Response selector:', platform.config.responseSelector);
 
   // Generate privacy-preserving device fingerprint
   async function getDeviceFingerprint() {
@@ -344,10 +352,15 @@
   // Process all visible responses
   function processResponses() {
     const responses = document.querySelectorAll(platform.config.responseSelector);
-    responses.forEach(response => {
+    debugLog(`Found ${responses.length} responses with selector: ${platform.config.responseSelector}`);
+
+    responses.forEach((response, index) => {
       // Only inject if not streaming
       if (!isStreaming(response)) {
+        debugLog(`Injecting rating UI into response ${index + 1}`);
         injectRatingUI(response);
+      } else {
+        debugLog(`Response ${index + 1} is still streaming, skipping`);
       }
     });
   }
@@ -370,5 +383,14 @@
   // Initial processing
   setTimeout(processResponses, 500);
 
-  console.log('Humane AI Rater: Content script initialized');
+  debugLog('Content script initialized');
+
+  // Log when no responses found after initial delay
+  setTimeout(() => {
+    const responses = document.querySelectorAll(platform.config.responseSelector);
+    if (responses.length === 0) {
+      debugLog('WARNING: No responses found. Selector may need updating.');
+      debugLog('Try inspecting the page to find the correct response element selector.');
+    }
+  }, 3000);
 })();

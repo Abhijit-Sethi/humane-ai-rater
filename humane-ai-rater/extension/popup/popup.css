@@ -178,6 +178,28 @@ body {
   color: #EF4444;
 }
 
+.score-breakdown {
+  display: flex;
+  gap: 8px;
+  font-size: 11px;
+  margin-top: 4px;
+}
+
+.positive-count {
+  color: #22C55E;
+}
+
+.negative-count {
+  color: #EF4444;
+}
+
+.privacy-note {
+  font-size: 13px;
+  color: #2D5A27;
+  font-weight: 500;
+  margin-bottom: 8px;
+}
+
 /* No data state */
 .no-data {
   display: flex;
