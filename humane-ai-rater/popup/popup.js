@@ -8,6 +8,9 @@ document.addEventListener('DOMContentLoaded', () => {
   loadRecent();
   loadApiKey();
   setupEventListeners();
+  initScoreCircle();
+  initFlip();
+  initTimeFilter();
 });
 
 // --- Tab Navigation ---
@@ -301,4 +304,230 @@ function timeAgo(isoString) {
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
   if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
   return `${Math.floor(seconds / 86400)}d ago`;
+}
+
+// --- Score Circle & Flip History ---
+
+let allRatings = [];
+let currentChatbot = null;
+
+const URL_TO_MODEL = [
+  { pattern: 'chatgpt.com', model: 'ChatGPT' },
+  { pattern: 'chat.openai.com', model: 'ChatGPT' },
+  { pattern: 'claude.ai', model: 'Claude' },
+  { pattern: 'grok.com', model: 'Grok' },
+  { pattern: 'x.com', model: 'Grok' },
+  { pattern: 'twitter.com', model: 'Grok' },
+  { pattern: 'chat.deepseek.com', model: 'Deepseek' }
+];
+
+function getCircleColor(score) {
+  if (score >= 0.5) return '#10b981';   // green
+  if (score >= 0) return '#f59e0b';     // yellow
+  if (score >= -0.5) return '#f97316';  // orange
+  return '#ef4444';                      // red
+}
+
+async function detectCurrentChatbot() {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab && tab.url) {
+      const hostname = new URL(tab.url).hostname;
+      const match = URL_TO_MODEL.find(m => hostname.includes(m.pattern));
+      if (match) return match.model;
+    }
+  } catch (err) {
+    // Ignore - tab access may not be available
+  }
+  return null;
+}
+
+async function initScoreCircle() {
+  try {
+    allRatings = await sendMessage({ type: 'getRatings' }) || [];
+    currentChatbot = await detectCurrentChatbot();
+    updateScoreCircle();
+  } catch (err) {
+    allRatings = [];
+  }
+}
+
+function updateScoreCircle() {
+  const circle = document.getElementById('scoreCircle');
+  const valueEl = document.getElementById('scoreCircleValue');
+  const labelEl = document.getElementById('scoreCircleLabel');
+
+  // Filter to current chatbot if detected
+  const ratings = currentChatbot
+    ? allRatings.filter(r => r.model === currentChatbot)
+    : allRatings;
+
+  labelEl.textContent = currentChatbot || '';
+
+  if (!ratings || ratings.length === 0) {
+    valueEl.textContent = '--';
+    circle.style.background = '#d1d5db';
+    return;
+  }
+
+  const avg = ratings.reduce((sum, r) => sum + r.overallScore, 0) / ratings.length;
+  valueEl.textContent = avg.toFixed(1);
+  circle.style.background = getCircleColor(avg);
+}
+
+function initFlip() {
+  document.getElementById('scoreCircle').addEventListener('click', () => {
+    document.getElementById('flipCard').classList.add('flipped');
+    populateModelFilter();
+    // Auto-select the current chatbot in the model filter
+    if (currentChatbot) {
+      const pills = document.querySelectorAll('#modelFilter .pill');
+      pills.forEach(p => {
+        p.classList.toggle('active', p.dataset.model === currentChatbot);
+      });
+    }
+    loadHistory();
+  });
+
+  document.getElementById('backBtn').addEventListener('click', () => {
+    document.getElementById('flipCard').classList.remove('flipped');
+  });
+}
+
+function initTimeFilter() {
+  document.querySelectorAll('#timeFilter .pill').forEach(pill => {
+    pill.addEventListener('click', () => {
+      document.querySelectorAll('#timeFilter .pill').forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+      loadHistory();
+    });
+  });
+}
+
+function populateModelFilter() {
+  const container = document.getElementById('modelFilter');
+  const models = [...new Set(allRatings.map(r => r.model))];
+
+  container.innerHTML = '<button class="pill active" data-model="all">All</button>';
+  models.forEach(model => {
+    container.innerHTML += `<button class="pill" data-model="${escapeHtml(model)}">${escapeHtml(model)}</button>`;
+  });
+
+  container.querySelectorAll('.pill').forEach(pill => {
+    pill.addEventListener('click', () => {
+      container.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+      loadHistory();
+    });
+  });
+}
+
+function getFilteredRatings() {
+  const modelFilter = document.querySelector('#modelFilter .pill.active')?.dataset.model || 'all';
+  const timeFilter = document.querySelector('#timeFilter .pill.active')?.dataset.time || 'all';
+
+  let filtered = [...allRatings];
+
+  if (modelFilter !== 'all') {
+    filtered = filtered.filter(r => r.model === modelFilter);
+  }
+
+  if (timeFilter !== 'all') {
+    const days = parseInt(timeFilter);
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - days);
+    filtered = filtered.filter(r => new Date(r.timestamp) >= cutoff);
+  }
+
+  return filtered;
+}
+
+function loadHistory() {
+  const filtered = getFilteredRatings();
+  renderHistorySummary(filtered);
+  renderHistoryDimensions(filtered);
+  renderHistoryList(filtered);
+}
+
+function renderHistorySummary(ratings) {
+  const bigCircle = document.getElementById('historyBigCircle');
+  const bigScore = document.getElementById('historyBigScore');
+  const countEl = document.getElementById('historyCount');
+  const labelEl = document.getElementById('historyLabel');
+
+  if (ratings.length === 0) {
+    bigScore.textContent = '--';
+    bigCircle.style.background = '#d1d5db';
+    countEl.textContent = '0';
+    labelEl.textContent = 'N/A';
+    return;
+  }
+
+  const avg = ratings.reduce((sum, r) => sum + r.overallScore, 0) / ratings.length;
+  bigScore.textContent = (avg > 0 ? '+' : '') + avg.toFixed(2);
+  bigCircle.style.background = getCircleColor(avg);
+  countEl.textContent = ratings.length;
+  labelEl.textContent = getLabel(avg);
+}
+
+function renderHistoryDimensions(ratings) {
+  const container = document.getElementById('historyDimensions');
+
+  if (ratings.length === 0) {
+    container.innerHTML = '';
+    return;
+  }
+
+  const dimNames = [
+    'Respect Attention', 'Meaningful Choices', 'Enhance Capabilities',
+    'Dignity & Safety', 'Healthy Relationships', 'Long-term Wellbeing',
+    'Transparency & Honesty', 'Equity & Inclusion'
+  ];
+
+  const dimAvgs = Array(8).fill(0);
+  ratings.forEach(r => {
+    if (r.principles) {
+      r.principles.forEach((p, i) => { dimAvgs[i] += p.score; });
+    }
+  });
+  dimAvgs.forEach((_, i) => { dimAvgs[i] = dimAvgs[i] / ratings.length; });
+
+  container.innerHTML = dimAvgs.map((avg, i) => {
+    const pct = ((avg + 1) / 2) * 100; // map -1..1 to 0%..100%
+    const color = getColor(avg);
+    return `
+      <div class="dim-row">
+        <span class="dim-name">${dimNames[i]}</span>
+        <div class="dim-bar-track">
+          <div class="dim-bar-fill" style="width: ${pct}%; background: ${color}"></div>
+        </div>
+        <span class="dim-value" style="color: ${color}">${avg > 0 ? '+' : ''}${avg.toFixed(2)}</span>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderHistoryList(ratings) {
+  const container = document.getElementById('historyList');
+
+  if (ratings.length === 0) {
+    container.innerHTML = '<div class="empty-state"><p>No ratings for this filter.</p></div>';
+    return;
+  }
+
+  container.innerHTML = ratings.map(r => {
+    const color = getColor(r.overallScore);
+    return `
+      <div class="history-item">
+        <div class="history-item-header">
+          <span class="history-item-model">${escapeHtml(r.model)}</span>
+          <span class="history-item-score" style="color: ${color}">
+            ${r.overallScore > 0 ? '+' : ''}${r.overallScore.toFixed(2)}
+          </span>
+        </div>
+        <div class="history-item-prompt">${escapeHtml(r.userPrompt)}</div>
+        <div class="history-item-time">${timeAgo(r.timestamp)}</div>
+      </div>
+    `;
+  }).join('');
 }
