@@ -335,6 +335,73 @@ exports.getAggregates = functions.https.onRequest(async (req, res) => {
   }
 });
 
+/**
+ * HTTP function to submit anonymous ratings (for extension)
+ * This writes to the ratings collection which triggers validateRating
+ */
+exports.submitAnonymousRating = functions.https.onRequest(async (req, res) => {
+  // Set CORS headers
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.set('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    res.status(204).send('');
+    return;
+  }
+
+  if (req.method !== 'POST') {
+    res.status(405).json({ error: 'Method not allowed' });
+    return;
+  }
+
+  try {
+    const {
+      deviceHash,
+      platform,
+      rating,
+      overallScore,
+      principles,
+      userPromptPreview,
+      viewportTime,
+      behaviorSignals,
+      timestamp
+    } = req.body;
+
+    // Basic validation
+    if (!deviceHash || !platform || !rating) {
+      res.status(400).json({ error: 'Missing required fields: deviceHash, platform, rating' });
+      return;
+    }
+
+    // Create the rating document (this triggers validateRating)
+    const ratingDoc = {
+      deviceHash,
+      platform,
+      rating,
+      overallScore: overallScore || 0,
+      principles: principles || [],
+      userPromptPreview: userPromptPreview || '',
+      viewportTime: viewportTime || 0,
+      behaviorSignals: behaviorSignals || {},
+      timestamp: timestamp || new Date().toISOString(),
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      source: 'extension'
+    };
+
+    const docRef = await db.collection('ratings').add(ratingDoc);
+
+    res.json({
+      success: true,
+      ratingId: docRef.id,
+      message: 'Rating submitted for validation'
+    });
+  } catch (error) {
+    console.error('Error submitting rating:', error);
+    res.status(500).json({ error: 'Failed to submit rating' });
+  }
+});
+
 // ─── Helpers for authenticated endpoints ────────────────────────────────────
 
 const crypto = require('crypto');
