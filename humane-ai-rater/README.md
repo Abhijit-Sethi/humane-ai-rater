@@ -16,8 +16,8 @@ Humane AI Rater addresses this by providing a one-tap rating system that:
 - **One-Tap Rating**: Rate any AI response with a single click
 - **8-Principle Evaluation**: Powered by HumaneBench methodology using Google Gemini API
 - **Multi-Platform Support**: Works on ChatGPT, Claude, Grok, and Deepseek
-- **Local Leaderboard**: Track and compare AI humaneness scores
-- **Privacy-First**: All ratings stored locally by default
+- **Local + Global Leaderboards**: Track personal scores locally and contribute to global rankings
+- **Firebase Backend**: Anonymous ratings synced to cloud for aggregated insights
 - **Real-Time Detection**: Automatically detects AI responses using MutationObserver
 
 ### The 8 HumaneBench Principles
@@ -131,8 +131,8 @@ humane-ai-rater/
 ├── styles/
 │   └── overlay.css           # Overlay styling
 ├── background/
-│   └── service-worker.js     # Gemini API integration
-├── firebase/                  # Backend infrastructure (optional)
+│   └── service-worker.js     # Gemini API + Firebase sync
+├── firebase/                  # Backend infrastructure
 │   ├── firebase.json         # Firebase configuration
 │   ├── firestore.rules       # Security rules
 │   └── functions/            # Cloud Functions
@@ -149,12 +149,17 @@ humane-ai-rater/
 | Frontend | Vanilla JavaScript (ES6+) |
 | LLM Evaluation | Google Gemini 2.0 Flash API |
 | Local Storage | Chrome Storage API |
-| Backend (optional) | Firebase Cloud Functions |
-| Database (optional) | Firebase Firestore |
+| Backend | Firebase Cloud Functions |
+| Database | Firebase Firestore |
 
-## Backend Deployment (Optional)
+## Backend (Firebase)
 
-The extension works fully locally. For aggregated leaderboards and cloud features:
+The extension syncs ratings to Firebase for global aggregates. The backend is already deployed at:
+
+- **Submit Rating**: `https://us-central1-humane-ai-rater.cloudfunctions.net/submitAnonymousRating`
+- **Get Aggregates**: `https://us-central1-humane-ai-rater.cloudfunctions.net/getAggregates`
+
+### For Development/Self-Hosting:
 
 ### Setup Firebase
 
@@ -194,7 +199,8 @@ firebase functions:log
 
 | Function | Purpose |
 |----------|---------|
-| `validateRating` | Anti-spoofing, rate limiting (50/day per device) |
+| `submitAnonymousRating` | HTTP endpoint for extension to submit ratings |
+| `validateRating` | Firestore trigger for anti-spoofing & rate limiting |
 | `getAggregates` | Public leaderboard data endpoint |
 | `computeWeeklyTrends` | Daily scheduled trend computation |
 | `cleanupRateLimits` | Weekly cleanup of old rate limit records |
@@ -230,15 +236,26 @@ Overlay displays color-coded score panel
        ↓
 User saves optional thumbs up/down
        ↓
-Rating stored locally, leaderboard updated
+Rating stored locally + synced to Firebase
+       ↓
+Global aggregates updated for public leaderboard
 ```
 
 ## Privacy & Security
 
-- **Local-first design**: All ratings stored on user's device by default
-- **Minimal data capture**: Only prompt + response + scores stored
-- **No tracking**: No user identifiers sent to external services
+- **Anonymous by design**: Device hash used for rate-limiting, no personal identifiers
+- **Minimal data synced to Firebase**:
+  - Platform name (ChatGPT, Claude, etc.)
+  - Overall score and rating (positive/negative)
+  - Prompt preview (first 100 characters only)
+  - Behavioral signals (viewport time, interaction flags)
+- **Data NOT sent to Firebase**:
+  - Full conversation text
+  - Complete AI responses
+  - Personal information or account details
+- **Local storage**: Full ratings stored on device for personal leaderboard
 - **User-controlled API key**: Each user provides their own Gemini key
+- **Anti-spoofing**: Rate limiting (50 ratings/day) and behavioral validation
 - **Transparent methodology**: Links to HumaneBench.ai for full rubric
 
 ## Troubleshooting
