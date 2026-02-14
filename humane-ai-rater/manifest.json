@@ -5,6 +5,7 @@
   "description": "Rate AI chatbot interactions against HumaneBench's 8 Humane Technology Principles",
   "permissions": [
     "activeTab",
+    "tabs",
     "storage"
   ],
   "host_permissions": [
