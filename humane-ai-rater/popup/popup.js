@@ -253,6 +253,7 @@ async function screenshotCard(cardElement, shareBtn) {
     // Success feedback
     shareBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>`;
     shareBtn.classList.add('share-success');
+    showToast('Copied to Clipboard!');
 
     setTimeout(() => {
       shareBtn.innerHTML = originalHTML;
@@ -270,6 +271,25 @@ async function screenshotCard(cardElement, shareBtn) {
       shareBtn.disabled = false;
     }, 1500);
   }
+}
+
+function showToast(message) {
+  // Remove any existing toast
+  const existing = document.querySelector('.copy-toast');
+  if (existing) existing.remove();
+
+  const toast = document.createElement('div');
+  toast.className = 'copy-toast';
+  toast.textContent = message;
+  document.body.appendChild(toast);
+
+  // Trigger animation
+  requestAnimationFrame(() => toast.classList.add('show'));
+
+  setTimeout(() => {
+    toast.classList.remove('show');
+    setTimeout(() => toast.remove(), 300);
+  }, 1800);
 }
 
 function timeAgo(isoString) {
