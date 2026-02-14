@@ -16,25 +16,25 @@
   "content_scripts": [
     {
       "matches": ["*://chatgpt.com/*", "*://chat.openai.com/*"],
-      "js": ["shared/humanebench.js", "shared/storage.js", "content/overlay.js", "content/chatgpt.js"],
+      "js": ["shared/html2canvas.min.js", "shared/humanebench.js", "shared/storage.js", "content/overlay.js", "content/chatgpt.js"],
       "css": ["styles/overlay.css"],
       "run_at": "document_idle"
     },
     {
       "matches": ["*://claude.ai/*"],
-      "js": ["shared/humanebench.js", "shared/storage.js", "content/overlay.js", "content/claude.js"],
+      "js": ["shared/html2canvas.min.js", "shared/humanebench.js", "shared/storage.js", "content/overlay.js", "content/claude.js"],
       "css": ["styles/overlay.css"],
       "run_at": "document_idle"
     },
     {
       "matches": ["*://grok.com/*", "*://x.com/*", "*://twitter.com/*"],
-      "js": ["shared/humanebench.js", "shared/storage.js", "content/overlay.js", "content/grok.js"],
+      "js": ["shared/html2canvas.min.js", "shared/humanebench.js", "shared/storage.js", "content/overlay.js", "content/grok.js"],
       "css": ["styles/overlay.css"],
       "run_at": "document_idle"
     },
     {
       "matches": ["*://chat.deepseek.com/*"],
-      "js": ["shared/humanebench.js", "shared/storage.js", "content/overlay.js", "content/deepseek.js"],
+      "js": ["shared/html2canvas.min.js", "shared/humanebench.js", "shared/storage.js", "content/overlay.js", "content/deepseek.js"],
       "css": ["styles/overlay.css"],
       "run_at": "document_idle"
     }
