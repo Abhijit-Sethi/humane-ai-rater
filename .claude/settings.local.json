@@ -26,7 +26,8 @@
       "Bash(export PATH=\"/opt/homebrew/bin:$JAVA_HOME/bin:$PATH\")",
       "Bash(git fetch:*)",
       "Bash(git commit:*)",
-      "Bash(git -C /Users/aq_home/1Projects/humane-ai-rater log --oneline -15)"
+      "Bash(git -C /Users/aq_home/1Projects/humane-ai-rater log --oneline -15)",
+      "Bash(sips:*)"
     ]
   }
 }

@@ -7,139 +7,179 @@
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
-  <div class="flip-container">
-    <div class="flip-card" id="flipCard">
+  <div class="popup-container">
 
-      <!-- FRONT: Main Popup -->
-      <div class="flip-front">
-        <div class="popup-container">
-          <header class="popup-header">
-            <div class="logo">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2">
-                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-              </svg>
-              <h1>Humane AI Rater</h1>
-              <div class="score-circle-wrap">
-                <button class="score-circle" id="scoreCircle" title="View your rating history">
-                  <span id="scoreCircleValue">--</span>
-                </button>
-                <span class="score-circle-label" id="scoreCircleLabel"></span>
-              </div>
-            </div>
-            <p class="tagline">Rate AI humaneness with HumaneBench</p>
-          </header>
+    <!-- Header -->
+    <header class="popup-header">
+      <div class="logo">
+        <img src="../icons/HumaneAIRater-Logo.jpg" alt="Humane AI Rater" class="logo-img">
+        <div class="logo-text">
+          <span class="logo-humane">Humane</span>
+          <span class="logo-rater">AI RATER</span>
+        </div>
+      </div>
+      <div class="header-actions">
+        <span class="score-circle-label" id="scoreCircleLabel"></span>
+        <button class="score-circle" id="scoreCircle" title="View your rating history">
+          <span id="scoreCircleValue">--</span>
+        </button>
+        <button class="gear-btn" id="gearBtn" title="Settings">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+        </button>
+      </div>
+    </header>
 
-          <!-- Tabs -->
-          <nav class="tabs">
-            <button class="tab active" data-tab="leaderboard">Leaderboard</button>
-            <button class="tab" data-tab="recent">Recent</button>
-            <button class="tab" data-tab="settings">Settings</button>
-          </nav>
+    <!-- Main scrollable content -->
+    <div class="main-content">
 
-          <!-- Leaderboard Tab -->
-          <section class="tab-content active" id="tab-leaderboard">
-            <div class="leaderboard" id="leaderboardContainer">
-              <div class="empty-state">
-                <p>No ratings yet.</p>
-                <p class="muted">Visit ChatGPT or Claude and rate some responses!</p>
-              </div>
-            </div>
-          </section>
-
-          <!-- Recent Ratings Tab -->
-          <section class="tab-content" id="tab-recent">
-            <div class="recent-list" id="recentContainer">
-              <div class="empty-state">
-                <p>No ratings yet.</p>
-              </div>
-            </div>
-          </section>
-
-          <!-- Settings Tab -->
-          <section class="tab-content" id="tab-settings">
-            <div class="settings-group">
-              <label class="settings-label" for="apiKeyInput">Gemini API Key</label>
-              <div class="api-key-row">
-                <input type="password" id="apiKeyInput" placeholder="Enter your Gemini API key" autocomplete="off">
-                <button id="saveKeyBtn" class="btn-primary">Save</button>
-              </div>
-              <p class="settings-help">
-                Get a free key at <a href="https://aistudio.google.com/apikey" target="_blank">Google AI Studio</a>
-              </p>
-              <div id="keyStatus" class="key-status"></div>
-            </div>
-
-            <div class="settings-group">
-              <label class="settings-label">Data</label>
-              <button id="clearDataBtn" class="btn-danger">Clear All Ratings</button>
-              <p class="settings-help">This removes all stored ratings and leaderboard data.</p>
-            </div>
-
-            <div class="settings-group">
-              <label class="settings-label">About</label>
-              <p class="settings-help">
-                Evaluates AI chatbot responses against the
-                <a href="https://humanebench.ai" target="_blank">HumaneBench</a>
-                8 Humane Technology Principles.
-              </p>
-              <p class="settings-help muted">v1.0.0 | Building Humane Tech Hackathon</p>
-            </div>
-          </section>
+      <!-- Benchmark Card -->
+      <div class="card benchmark-card">
+        <div class="card-label">HUMANE BENCHMARK</div>
+        <div class="benchmark-body">
+          <p class="benchmark-text">Before you use this chatbot, here is the overall rating:</p>
+          <div class="benchmark-score" id="benchmarkScore">--</div>
         </div>
       </div>
 
-      <!-- BACK: Rating History -->
-      <div class="flip-back">
-        <div class="history-panel">
-          <header class="history-header">
-            <h2>Rating History</h2>
-            <button class="back-btn" id="backBtn" title="Back to main view">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M19 12H5M12 19l-7-7 7-7"/>
-              </svg>
-            </button>
-          </header>
-
-          <div class="history-score-summary" id="historySummary">
-            <div class="history-big-circle" id="historyBigCircle">
-              <span id="historyBigScore">--</span>
-            </div>
-            <div class="history-stats">
-              <div class="history-stat">
-                <span class="stat-value" id="historyCount">0</span>
-                <span class="stat-label">ratings</span>
-              </div>
-              <div class="history-stat">
-                <span class="stat-value" id="historyLabel">N/A</span>
-                <span class="stat-label">overall</span>
-              </div>
-            </div>
+      <!-- Your Rating Card -->
+      <div class="card rating-card">
+        <div class="card-label">YOUR RATING</div>
+        <div class="rating-body">
+          <span class="rating-text">How accurate is this?</span>
+          <div class="rating-thumbs">
+            <button class="thumb-btn" id="thumbUp" data-vote="up">&#x1F44D;</button>
+            <button class="thumb-btn" id="thumbDown" data-vote="down">&#x1F44E;</button>
           </div>
-
-          <div class="history-filters">
-            <div class="filter-group">
-              <label class="filter-label">Model</label>
-              <div class="filter-pills" id="modelFilter">
-                <button class="pill active" data-model="all">All</button>
-              </div>
-            </div>
-            <div class="filter-group">
-              <label class="filter-label">Time Range</label>
-              <div class="filter-pills" id="timeFilter">
-                <button class="pill active" data-time="all">All Time</button>
-                <button class="pill" data-time="30">30d</button>
-                <button class="pill" data-time="7">7d</button>
-                <button class="pill" data-time="1">Today</button>
-              </div>
-            </div>
-          </div>
-
-          <div class="history-dimensions" id="historyDimensions"></div>
-
-          <div class="history-list" id="historyList"></div>
         </div>
       </div>
 
+      <!-- More toggle -->
+      <div class="more-toggle">
+        <button class="more-btn" id="moreBtn">more...</button>
+      </div>
+
+      <!-- Expandable: Leaderboard & Recent -->
+      <div class="expanded-section" id="expandedSection">
+        <nav class="tabs">
+          <button class="tab active" data-tab="leaderboard">Leaderboard</button>
+          <button class="tab" data-tab="recent">Recent</button>
+        </nav>
+        <section class="tab-content active" id="tab-leaderboard">
+          <div class="leaderboard" id="leaderboardContainer">
+            <div class="empty-state"><p>No ratings yet.</p><p class="muted">Visit ChatGPT or Claude and rate some responses!</p></div>
+          </div>
+        </section>
+        <section class="tab-content" id="tab-recent">
+          <div class="recent-list" id="recentContainer">
+            <div class="empty-state"><p>No ratings yet.</p></div>
+          </div>
+        </section>
+      </div>
+
+      <!-- 8 Dimension Sliders -->
+      <div class="dimensions" id="dimensionsContainer"></div>
+
+      <!-- Credits -->
+      <div class="credits">
+        <div class="credits-label">HUMANE CREATORS</div>
+        <p class="credits-names">Samudyata Jagirdai, Abhijit Sethi, Andrew Quintana, AnneMarie Ward</p>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- History Overlay -->
+  <div class="history-overlay" id="historyOverlay">
+    <div class="history-panel">
+      <div class="history-header">
+        <h2>Rating History</h2>
+        <button class="close-btn" id="closeHistoryBtn" title="Close">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="history-score-summary">
+        <div class="history-big-circle" id="historyBigCircle">
+          <span id="historyBigScore">--</span>
+        </div>
+        <div class="history-stats">
+          <div class="history-stat">
+            <span class="stat-value" id="historyCount">0</span>
+            <span class="stat-label">ratings</span>
+          </div>
+          <div class="history-stat">
+            <span class="stat-value" id="historyLabel">N/A</span>
+            <span class="stat-label">overall</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="history-filters">
+        <div class="filter-group">
+          <label class="filter-label">Model</label>
+          <div class="filter-pills" id="modelFilter">
+            <button class="pill active" data-model="all">All</button>
+          </div>
+        </div>
+        <div class="filter-group">
+          <label class="filter-label">Time Range</label>
+          <div class="filter-pills" id="timeFilter">
+            <button class="pill active" data-time="all">All Time</button>
+            <button class="pill" data-time="30">30d</button>
+            <button class="pill" data-time="7">7d</button>
+            <button class="pill" data-time="1">Today</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="history-dimensions" id="historyDimensions"></div>
+      <div class="history-list" id="historyList"></div>
+    </div>
+  </div>
+
+  <!-- Settings Overlay -->
+  <div class="settings-overlay" id="settingsOverlay">
+    <div class="settings-panel">
+      <div class="settings-header">
+        <h2>Settings</h2>
+        <button class="close-btn" id="closeSettingsBtn" title="Close">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+      <div class="settings-body">
+        <div class="settings-group">
+          <label class="settings-label" for="apiKeyInput">Gemini API Key</label>
+          <div class="api-key-row">
+            <input type="password" id="apiKeyInput" placeholder="Enter your Gemini API key" autocomplete="off">
+            <button id="saveKeyBtn" class="btn-primary">Save</button>
+          </div>
+          <p class="settings-help">
+            Get a free key at <a href="https://aistudio.google.com/apikey" target="_blank">Google AI Studio</a>
+          </p>
+          <div id="keyStatus" class="key-status"></div>
+        </div>
+        <div class="settings-group">
+          <label class="settings-label">Data</label>
+          <button id="clearDataBtn" class="btn-danger">Clear All Ratings</button>
+          <p class="settings-help">This removes all stored ratings and leaderboard data.</p>
+        </div>
+        <div class="settings-group">
+          <label class="settings-label">About</label>
+          <p class="settings-help">
+            Evaluates AI chatbot responses against the
+            <a href="https://humanebench.ai" target="_blank">HumaneBench</a>
+            8 Humane Technology Principles.
+          </p>
+          <p class="settings-help muted">v1.0.0 | Building Humane Tech Hackathon</p>
+        </div>
+      </div>
     </div>
   </div>
 

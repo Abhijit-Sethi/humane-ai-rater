@@ -1,19 +1,205 @@
 /**
- * Popup Script - Leaderboard, Recent Ratings, and Settings
+ * Popup Script - Humane AI Rater
+ * Benchmark scores, dimension sliders, leaderboard, recent ratings, settings.
  */
 
 document.addEventListener('DOMContentLoaded', () => {
+  initBenchmark();
   initTabs();
+  initMoreToggle();
+  initSettings();
+  initThumbs();
+  initHistory();
+  initTimeFilter();
   loadLeaderboard();
   loadRecent();
   loadApiKey();
-  setupEventListeners();
-  initScoreCircle();
-  initFlip();
-  initTimeFilter();
 });
 
-// --- Tab Navigation ---
+// ─── Constants ───────────────────────────────────
+
+const DIM_LABELS = [
+  'Empathy', 'Meaningful', 'Supportive', 'Secure',
+  'Honest', 'Respectful', 'Transparent', 'Inclusive'
+];
+
+const DIM_FULL_NAMES = [
+  'Respect User Attention', 'Enable Meaningful Choices',
+  'Enhance Human Capabilities', 'Protect Dignity & Safety',
+  'Foster Healthy Relationships', 'Prioritize Long-term Wellbeing',
+  'Be Transparent & Honest', 'Design for Equity & Inclusion'
+];
+
+const URL_TO_MODEL = [
+  { pattern: 'chatgpt.com', model: 'ChatGPT' },
+  { pattern: 'chat.openai.com', model: 'ChatGPT' },
+  { pattern: 'claude.ai', model: 'Claude' },
+  { pattern: 'grok.com', model: 'Grok' },
+  { pattern: 'x.com', model: 'Grok' },
+  { pattern: 'twitter.com', model: 'Grok' },
+  { pattern: 'chat.deepseek.com', model: 'Deepseek' }
+];
+
+let allRatings = [];
+let currentChatbot = null;
+
+// ─── Score Conversion ────────────────────────────
+
+/** Map -1..1 score to 1..5 display scale */
+function toFivePoint(score) {
+  return (score + 1) * 2 + 1;
+}
+
+function getColor(score) {
+  if (score >= 0.75) return '#10b981';
+  if (score >= 0.0)  return '#f59e0b';
+  if (score >= -0.5) return '#f97316';
+  return '#ef4444';
+}
+
+function getLabel(score) {
+  if (score >= 0.75) return 'Exemplary';
+  if (score >= 0.0)  return 'Acceptable';
+  if (score >= -0.5) return 'Concerning';
+  return 'Violation';
+}
+
+function getBgClass(score) {
+  if (score >= 1.0)  return 'bg-exemplary';
+  if (score >= 0.5)  return 'bg-acceptable';
+  if (score >= -0.5) return 'bg-concerning';
+  return 'bg-violation';
+}
+
+// ─── Benchmark & Dimensions ──────────────────────
+
+async function detectCurrentChatbot() {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab && tab.url) {
+      const hostname = new URL(tab.url).hostname;
+      const match = URL_TO_MODEL.find(m => hostname.includes(m.pattern));
+      if (match) return match.model;
+    }
+  } catch (err) { /* ignore */ }
+  return null;
+}
+
+async function initBenchmark() {
+  try {
+    allRatings = await sendMessage({ type: 'getRatings' }) || [];
+    currentChatbot = await detectCurrentChatbot();
+  } catch (err) {
+    allRatings = [];
+  }
+  updateBenchmarkScore();
+  updateScoreCircle();
+  renderDimensions();
+}
+
+function getCircleColor(score) {
+  if (score >= 0.5)  return '#10b981';
+  if (score >= 0)    return '#f59e0b';
+  if (score >= -0.5) return '#f97316';
+  return '#ef4444';
+}
+
+function updateScoreCircle() {
+  const circle = document.getElementById('scoreCircle');
+  const valueEl = document.getElementById('scoreCircleValue');
+  const labelEl = document.getElementById('scoreCircleLabel');
+
+  const ratings = getRelevantRatings();
+  labelEl.textContent = currentChatbot || '';
+
+  if (!ratings || ratings.length === 0) {
+    valueEl.textContent = '--';
+    circle.style.background = '#d1d5db';
+    return;
+  }
+
+  const avg = ratings.reduce((sum, r) => sum + r.overallScore, 0) / ratings.length;
+  const fivePoint = toFivePoint(avg);
+  valueEl.textContent = fivePoint.toFixed(1);
+  circle.style.background = getCircleColor(avg);
+}
+
+function getRelevantRatings() {
+  return currentChatbot
+    ? allRatings.filter(r => r.model === currentChatbot)
+    : allRatings;
+}
+
+function updateBenchmarkScore() {
+  const scoreEl = document.getElementById('benchmarkScore');
+  const ratings = getRelevantRatings();
+
+  if (!ratings || ratings.length === 0) {
+    scoreEl.textContent = '--';
+    return;
+  }
+
+  const avg = ratings.reduce((sum, r) => sum + r.overallScore, 0) / ratings.length;
+  const fivePoint = toFivePoint(avg);
+  scoreEl.textContent = fivePoint.toFixed(1);
+}
+
+function renderDimensions() {
+  const container = document.getElementById('dimensionsContainer');
+  const ratings = getRelevantRatings();
+
+  if (!ratings || ratings.length === 0) {
+    container.innerHTML = DIM_LABELS.map((label, i) =>
+      renderSlider(label, null, DIM_FULL_NAMES[i])
+    ).join('');
+    return;
+  }
+
+  const dimAvgs = Array(8).fill(0);
+  ratings.forEach(r => {
+    if (r.principles) {
+      r.principles.forEach((p, i) => { dimAvgs[i] += p.score; });
+    }
+  });
+  dimAvgs.forEach((_, i) => { dimAvgs[i] /= ratings.length; });
+
+  container.innerHTML = dimAvgs.map((avg, i) => {
+    const fivePoint = toFivePoint(avg);
+    return renderSlider(DIM_LABELS[i], fivePoint, DIM_FULL_NAMES[i]);
+  }).join('');
+}
+
+function renderSlider(label, value, tooltip) {
+  const hasData = value !== null && value !== undefined;
+  const rounded = hasData ? Math.max(1, Math.min(5, Math.round(value))) : 0;
+  const fillPct = hasData ? ((value - 1) / 4) * 100 : 0;
+  const clampedFill = Math.max(0, Math.min(100, fillPct));
+
+  let dotsHtml = '';
+  for (let i = 1; i <= 5; i++) {
+    let cls = 'slider-dot';
+    if (hasData && i < rounded) cls += ' passed';
+    if (hasData && i === rounded) cls += ' active';
+    dotsHtml += `<div class="${cls}"></div>`;
+  }
+
+  return `
+    <div class="slider-group${hasData ? '' : ' empty'}" title="${tooltip}">
+      <div class="slider-title">${label}</div>
+      <div class="slider-track-wrapper">
+        <div class="slider-track">
+          <div class="slider-fill" style="width: ${clampedFill}%"></div>
+        </div>
+        <div class="slider-dots">${dotsHtml}</div>
+      </div>
+      <div class="slider-numbers">
+        <span>1</span><span>2</span><span>3</span><span>4</span><span>5</span>
+      </div>
+    </div>
+  `;
+}
+
+// ─── Tabs ────────────────────────────────────────
 
 function initTabs() {
   document.querySelectorAll('.tab').forEach(tab => {
@@ -26,7 +212,110 @@ function initTabs() {
   });
 }
 
-// --- Leaderboard ---
+// ─── More Toggle ─────────────────────────────────
+
+function initMoreToggle() {
+  const btn = document.getElementById('moreBtn');
+  const section = document.getElementById('expandedSection');
+
+  btn.addEventListener('click', () => {
+    const isOpen = section.classList.toggle('open');
+    btn.textContent = isOpen ? 'less...' : 'more...';
+  });
+}
+
+// ─── Thumbs Up/Down ──────────────────────────────
+
+function initThumbs() {
+  const upBtn = document.getElementById('thumbUp');
+  const downBtn = document.getElementById('thumbDown');
+
+  // Load existing vote
+  chrome.storage.local.get('userVote', (data) => {
+    if (data.userVote) {
+      if (data.userVote === 'up') upBtn.classList.add('selected');
+      if (data.userVote === 'down') downBtn.classList.add('selected');
+    }
+  });
+
+  upBtn.addEventListener('click', () => toggleVote('up', upBtn, downBtn));
+  downBtn.addEventListener('click', () => toggleVote('down', downBtn, upBtn));
+}
+
+function toggleVote(vote, activeBtn, otherBtn) {
+  const wasSelected = activeBtn.classList.contains('selected');
+  activeBtn.classList.toggle('selected');
+  otherBtn.classList.remove('selected');
+
+  const newVote = wasSelected ? null : vote;
+  chrome.storage.local.set({ userVote: newVote });
+}
+
+// ─── Settings ────────────────────────────────────
+
+function initSettings() {
+  const overlay = document.getElementById('settingsOverlay');
+
+  document.getElementById('gearBtn').addEventListener('click', () => {
+    overlay.classList.add('open');
+  });
+
+  document.getElementById('closeSettingsBtn').addEventListener('click', () => {
+    overlay.classList.remove('open');
+  });
+
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) overlay.classList.remove('open');
+  });
+
+  // Save API key
+  document.getElementById('saveKeyBtn').addEventListener('click', async () => {
+    const key = document.getElementById('apiKeyInput').value.trim();
+    if (!key) {
+      showKeyStatus('Please enter an API key', 'error');
+      return;
+    }
+    try {
+      await sendMessage({ type: 'setApiKey', apiKey: key });
+      showKeyStatus('API key saved!', 'success');
+    } catch (err) {
+      showKeyStatus('Failed to save key', 'error');
+    }
+  });
+
+  // Clear data
+  document.getElementById('clearDataBtn').addEventListener('click', async () => {
+    if (!confirm('Clear all ratings and leaderboard data?')) return;
+    try {
+      await sendMessage({ type: 'clearData' });
+      allRatings = [];
+      updateBenchmarkScore();
+      renderDimensions();
+      loadLeaderboard();
+      loadRecent();
+    } catch (err) {
+      alert('Failed to clear data');
+    }
+  });
+}
+
+async function loadApiKey() {
+  try {
+    const result = await sendMessage({ type: 'getApiKey' });
+    if (result.apiKey) {
+      document.getElementById('apiKeyInput').value = result.apiKey;
+      showKeyStatus('API key saved', 'success');
+    }
+  } catch (err) { /* ignore */ }
+}
+
+function showKeyStatus(message, type) {
+  const el = document.getElementById('keyStatus');
+  el.textContent = message;
+  el.className = `key-status ${type}`;
+}
+
+// ─── Leaderboard ─────────────────────────────────
 
 async function loadLeaderboard() {
   const container = document.getElementById('leaderboardContainer');
@@ -39,17 +328,16 @@ async function loadLeaderboard() {
         <div class="empty-state">
           <p>No ratings yet.</p>
           <p class="muted">Visit ChatGPT or Claude and rate some responses!</p>
-        </div>
-      `;
+        </div>`;
       return;
     }
 
-    // Sort by average score descending
     const sorted = Object.entries(leaderboard)
       .map(([model, data]) => ({ model, ...data }))
       .sort((a, b) => b.avgScore - a.avgScore);
 
     container.innerHTML = sorted.map((entry, i) => {
+      const fivePoint = toFivePoint(entry.avgScore);
       const color = getColor(entry.avgScore);
       const label = getLabel(entry.avgScore);
       return `
@@ -60,20 +348,17 @@ async function loadLeaderboard() {
             <div class="lb-count">${entry.count} rating${entry.count !== 1 ? 's' : ''}</div>
           </div>
           <div>
-            <div class="lb-score" style="color: ${color}">
-              ${entry.avgScore > 0 ? '+' : ''}${entry.avgScore.toFixed(2)}
-            </div>
+            <div class="lb-score" style="color: ${color}">${fivePoint.toFixed(1)}</div>
             <div class="lb-label">${label}</div>
           </div>
-        </div>
-      `;
+        </div>`;
     }).join('');
   } catch (err) {
     container.innerHTML = `<div class="empty-state"><p>Error loading leaderboard</p></div>`;
   }
 }
 
-// --- Recent Ratings ---
+// ─── Recent Ratings ──────────────────────────────
 
 async function loadRecent() {
   const container = document.getElementById('recentContainer');
@@ -86,19 +371,18 @@ async function loadRecent() {
       return;
     }
 
-    // Show last 10
+    const shortLabels = ['Emp', 'Mean', 'Supp', 'Sec', 'Hon', 'Resp', 'Trns', 'Incl'];
+
     container.innerHTML = ratings.slice(0, 10).map((rating, idx) => {
+      const fivePoint = toFivePoint(rating.overallScore);
       const color = getColor(rating.overallScore);
-      const shortLabels = ['Attn', 'Choice', 'Capab', 'Safety', 'Relat', 'Well', 'Trans', 'Equit'];
 
       return `
         <div class="recent-card" data-rating-idx="${idx}">
           <div class="recent-header">
             <span class="recent-model">${rating.model}</span>
             <div class="recent-header-right">
-              <span class="recent-score" style="color: ${color}">
-                ${rating.overallScore > 0 ? '+' : ''}${rating.overallScore.toFixed(2)}
-              </span>
+              <span class="recent-score" style="color: ${color}">${fivePoint.toFixed(1)}</span>
               <button class="share-btn" data-idx="${idx}" title="Copy as image">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
@@ -115,17 +399,16 @@ async function loadRecent() {
             ${rating.principles.map((p, i) => {
               const pc = getColor(p.score);
               const bgClass = getBgClass(p.score);
+              const pFive = toFivePoint(p.score);
               return `
-                <div class="recent-principle ${bgClass}" title="${p.name}: ${p.score}">
-                  <span class="p-score" style="color: ${pc}">${p.score > 0 ? '+' : ''}${p.score}</span>
+                <div class="recent-principle ${bgClass}" title="${p.name}: ${pFive.toFixed(1)}">
+                  <span class="p-score" style="color: ${pc}">${pFive.toFixed(1)}</span>
                   <span class="p-name">${shortLabels[i]}</span>
-                </div>
-              `;
+                </div>`;
             }).join('')}
           </div>
           <div class="recent-time">${timeAgo(rating.timestamp)}</div>
-        </div>
-      `;
+        </div>`;
     }).join('');
 
     // Attach share button listeners
@@ -141,82 +424,10 @@ async function loadRecent() {
   }
 }
 
-// --- Settings ---
-
-async function loadApiKey() {
-  try {
-    const result = await sendMessage({ type: 'getApiKey' });
-    if (result.apiKey) {
-      document.getElementById('apiKeyInput').value = result.apiKey;
-      showKeyStatus('API key saved', 'success');
-    }
-  } catch (err) {
-    // Ignore
-  }
-}
-
-function setupEventListeners() {
-  // Save API key
-  document.getElementById('saveKeyBtn').addEventListener('click', async () => {
-    const key = document.getElementById('apiKeyInput').value.trim();
-    if (!key) {
-      showKeyStatus('Please enter an API key', 'error');
-      return;
-    }
-
-    try {
-      await sendMessage({ type: 'setApiKey', apiKey: key });
-      showKeyStatus('API key saved!', 'success');
-    } catch (err) {
-      showKeyStatus('Failed to save key', 'error');
-    }
-  });
-
-  // Clear data
-  document.getElementById('clearDataBtn').addEventListener('click', async () => {
-    if (!confirm('Clear all ratings and leaderboard data?')) return;
-
-    try {
-      await sendMessage({ type: 'clearData' });
-      loadLeaderboard();
-      loadRecent();
-    } catch (err) {
-      alert('Failed to clear data');
-    }
-  });
-}
-
-function showKeyStatus(message, type) {
-  const el = document.getElementById('keyStatus');
-  el.textContent = message;
-  el.className = `key-status ${type}`;
-}
-
-// --- Helpers ---
+// ─── Helpers ─────────────────────────────────────
 
 function sendMessage(message) {
   return chrome.runtime.sendMessage(message);
-}
-
-function getColor(score) {
-  if (score >= 0.75) return '#10b981';
-  if (score >= 0.0) return '#f59e0b';
-  if (score >= -0.5) return '#f97316';
-  return '#ef4444';
-}
-
-function getLabel(score) {
-  if (score >= 0.75) return 'Exemplary';
-  if (score >= 0.0) return 'Acceptable';
-  if (score >= -0.5) return 'Concerning';
-  return 'Violation';
-}
-
-function getBgClass(score) {
-  if (score >= 1.0) return 'bg-exemplary';
-  if (score >= 0.5) return 'bg-acceptable';
-  if (score >= -0.5) return 'bg-concerning';
-  return 'bg-violation';
 }
 
 function escapeHtml(text) {
@@ -225,18 +436,24 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
+function timeAgo(isoString) {
+  const now = new Date();
+  const date = new Date(isoString);
+  const seconds = Math.floor((now - date) / 1000);
+  if (seconds < 60) return 'just now';
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  return `${Math.floor(seconds / 86400)}d ago`;
+}
+
 async function screenshotCard(cardElement, shareBtn) {
   const originalHTML = shareBtn.innerHTML;
 
   try {
-    // Show loading state
     shareBtn.innerHTML = `<span class="share-spinner"></span>`;
     shareBtn.disabled = true;
-
-    // Hide the share button during capture
     shareBtn.style.visibility = 'hidden';
 
-    // Capture with html2canvas
     const canvas = await html2canvas(cardElement, {
       backgroundColor: '#ffffff',
       scale: 2,
@@ -244,7 +461,6 @@ async function screenshotCard(cardElement, shareBtn) {
       logging: false
     });
 
-    // Restore share button
     shareBtn.style.visibility = '';
 
     // Convert to blob
@@ -274,7 +490,6 @@ async function screenshotCard(cardElement, shareBtn) {
       showToast('Copied to Clipboard!');
     }
 
-    // Success feedback
     shareBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>`;
     shareBtn.classList.add('share-success');
 
@@ -283,7 +498,6 @@ async function screenshotCard(cardElement, shareBtn) {
       shareBtn.disabled = false;
       shareBtn.classList.remove('share-success');
     }, 1500);
-
   } catch (err) {
     // User cancelled share dialog - not an error
     if (err.name === 'AbortError') {
@@ -304,7 +518,6 @@ async function screenshotCard(cardElement, shareBtn) {
 }
 
 function showToast(message) {
-  // Remove any existing toast
   const existing = document.querySelector('.copy-toast');
   if (existing) existing.remove();
 
@@ -313,7 +526,6 @@ function showToast(message) {
   toast.textContent = message;
   document.body.appendChild(toast);
 
-  // Trigger animation
   requestAnimationFrame(() => toast.classList.add('show'));
 
   setTimeout(() => {
@@ -322,91 +534,14 @@ function showToast(message) {
   }, 1800);
 }
 
-function timeAgo(isoString) {
-  const now = new Date();
-  const date = new Date(isoString);
-  const seconds = Math.floor((now - date) / 1000);
+// ─── History Panel ───────────────────────────────
 
-  if (seconds < 60) return 'just now';
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-  return `${Math.floor(seconds / 86400)}d ago`;
-}
+function initHistory() {
+  const overlay = document.getElementById('historyOverlay');
 
-// --- Score Circle & Flip History ---
-
-let allRatings = [];
-let currentChatbot = null;
-
-const URL_TO_MODEL = [
-  { pattern: 'chatgpt.com', model: 'ChatGPT' },
-  { pattern: 'chat.openai.com', model: 'ChatGPT' },
-  { pattern: 'claude.ai', model: 'Claude' },
-  { pattern: 'grok.com', model: 'Grok' },
-  { pattern: 'x.com', model: 'Grok' },
-  { pattern: 'twitter.com', model: 'Grok' },
-  { pattern: 'chat.deepseek.com', model: 'Deepseek' }
-];
-
-function getCircleColor(score) {
-  if (score >= 0.5) return '#10b981';   // green
-  if (score >= 0) return '#f59e0b';     // yellow
-  if (score >= -0.5) return '#f97316';  // orange
-  return '#ef4444';                      // red
-}
-
-async function detectCurrentChatbot() {
-  try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (tab && tab.url) {
-      const hostname = new URL(tab.url).hostname;
-      const match = URL_TO_MODEL.find(m => hostname.includes(m.pattern));
-      if (match) return match.model;
-    }
-  } catch (err) {
-    // Ignore - tab access may not be available
-  }
-  return null;
-}
-
-async function initScoreCircle() {
-  try {
-    allRatings = await sendMessage({ type: 'getRatings' }) || [];
-    currentChatbot = await detectCurrentChatbot();
-    updateScoreCircle();
-  } catch (err) {
-    allRatings = [];
-  }
-}
-
-function updateScoreCircle() {
-  const circle = document.getElementById('scoreCircle');
-  const valueEl = document.getElementById('scoreCircleValue');
-  const labelEl = document.getElementById('scoreCircleLabel');
-
-  // Filter to current chatbot if detected
-  const ratings = currentChatbot
-    ? allRatings.filter(r => r.model === currentChatbot)
-    : allRatings;
-
-  labelEl.textContent = currentChatbot || '';
-
-  if (!ratings || ratings.length === 0) {
-    valueEl.textContent = '--';
-    circle.style.background = '#d1d5db';
-    return;
-  }
-
-  const avg = ratings.reduce((sum, r) => sum + r.overallScore, 0) / ratings.length;
-  valueEl.textContent = avg.toFixed(1);
-  circle.style.background = getCircleColor(avg);
-}
-
-function initFlip() {
   document.getElementById('scoreCircle').addEventListener('click', () => {
-    document.getElementById('flipCard').classList.add('flipped');
+    overlay.classList.add('open');
     populateModelFilter();
-    // Auto-select the current chatbot in the model filter
     if (currentChatbot) {
       const pills = document.querySelectorAll('#modelFilter .pill');
       pills.forEach(p => {
@@ -416,8 +551,12 @@ function initFlip() {
     loadHistory();
   });
 
-  document.getElementById('backBtn').addEventListener('click', () => {
-    document.getElementById('flipCard').classList.remove('flipped');
+  document.getElementById('closeHistoryBtn').addEventListener('click', () => {
+    overlay.classList.remove('open');
+  });
+
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) overlay.classList.remove('open');
   });
 }
 
@@ -491,7 +630,8 @@ function renderHistorySummary(ratings) {
   }
 
   const avg = ratings.reduce((sum, r) => sum + r.overallScore, 0) / ratings.length;
-  bigScore.textContent = (avg > 0 ? '+' : '') + avg.toFixed(2);
+  const fivePoint = toFivePoint(avg);
+  bigScore.textContent = fivePoint.toFixed(1);
   bigCircle.style.background = getCircleColor(avg);
   countEl.textContent = ratings.length;
   labelEl.textContent = getLabel(avg);
@@ -505,32 +645,26 @@ function renderHistoryDimensions(ratings) {
     return;
   }
 
-  const dimNames = [
-    'Respect Attention', 'Meaningful Choices', 'Enhance Capabilities',
-    'Dignity & Safety', 'Healthy Relationships', 'Long-term Wellbeing',
-    'Transparency & Honesty', 'Equity & Inclusion'
-  ];
-
   const dimAvgs = Array(8).fill(0);
   ratings.forEach(r => {
     if (r.principles) {
       r.principles.forEach((p, i) => { dimAvgs[i] += p.score; });
     }
   });
-  dimAvgs.forEach((_, i) => { dimAvgs[i] = dimAvgs[i] / ratings.length; });
+  dimAvgs.forEach((_, i) => { dimAvgs[i] /= ratings.length; });
 
   container.innerHTML = dimAvgs.map((avg, i) => {
-    const pct = ((avg + 1) / 2) * 100; // map -1..1 to 0%..100%
+    const pct = ((avg + 1) / 2) * 100;
     const color = getColor(avg);
+    const fivePoint = toFivePoint(avg);
     return `
       <div class="dim-row">
-        <span class="dim-name">${dimNames[i]}</span>
+        <span class="dim-name">${DIM_FULL_NAMES[i]}</span>
         <div class="dim-bar-track">
           <div class="dim-bar-fill" style="width: ${pct}%; background: ${color}"></div>
         </div>
-        <span class="dim-value" style="color: ${color}">${avg > 0 ? '+' : ''}${avg.toFixed(2)}</span>
-      </div>
-    `;
+        <span class="dim-value" style="color: ${color}">${fivePoint.toFixed(1)}</span>
+      </div>`;
   }).join('');
 }
 
@@ -544,17 +678,15 @@ function renderHistoryList(ratings) {
 
   container.innerHTML = ratings.map(r => {
     const color = getColor(r.overallScore);
+    const fivePoint = toFivePoint(r.overallScore);
     return `
       <div class="history-item">
         <div class="history-item-header">
           <span class="history-item-model">${escapeHtml(r.model)}</span>
-          <span class="history-item-score" style="color: ${color}">
-            ${r.overallScore > 0 ? '+' : ''}${r.overallScore.toFixed(2)}
-          </span>
+          <span class="history-item-score" style="color: ${color}">${fivePoint.toFixed(1)}</span>
         </div>
         <div class="history-item-prompt">${escapeHtml(r.userPrompt)}</div>
         <div class="history-item-time">${timeAgo(r.timestamp)}</div>
-      </div>
-    `;
+      </div>`;
   }).join('');
 }
