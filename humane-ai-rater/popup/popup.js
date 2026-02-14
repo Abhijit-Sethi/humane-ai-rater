@@ -84,17 +84,26 @@ async function loadRecent() {
     }
 
     // Show last 10
-    container.innerHTML = ratings.slice(0, 10).map(rating => {
+    container.innerHTML = ratings.slice(0, 10).map((rating, idx) => {
       const color = getColor(rating.overallScore);
       const shortLabels = ['Attn', 'Choice', 'Capab', 'Safety', 'Relat', 'Well', 'Trans', 'Equit'];
 
       return `
-        <div class="recent-card">
+        <div class="recent-card" data-rating-idx="${idx}">
           <div class="recent-header">
             <span class="recent-model">${rating.model}</span>
-            <span class="recent-score" style="color: ${color}">
-              ${rating.overallScore > 0 ? '+' : ''}${rating.overallScore.toFixed(2)}
-            </span>
+            <div class="recent-header-right">
+              <span class="recent-score" style="color: ${color}">
+                ${rating.overallScore > 0 ? '+' : ''}${rating.overallScore.toFixed(2)}
+              </span>
+              <button class="share-btn" data-idx="${idx}" title="Copy as image">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+                  <polyline points="16 6 12 2 8 6"/>
+                  <line x1="12" y1="2" x2="12" y2="15"/>
+                </svg>
+              </button>
+            </div>
           </div>
           <div class="recent-prompt" title="${escapeHtml(rating.userPrompt)}">
             ${escapeHtml(rating.userPrompt)}
@@ -115,6 +124,15 @@ async function loadRecent() {
         </div>
       `;
     }).join('');
+
+    // Attach share button listeners
+    container.querySelectorAll('.share-btn').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const card = btn.closest('.recent-card');
+        await screenshotCard(card, btn);
+      });
+    });
   } catch (err) {
     container.innerHTML = `<div class="empty-state"><p>Error loading ratings</p></div>`;
   }
@@ -202,6 +220,56 @@ function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text || '';
   return div.innerHTML;
+}
+
+async function screenshotCard(cardElement, shareBtn) {
+  const originalHTML = shareBtn.innerHTML;
+
+  try {
+    // Show loading state
+    shareBtn.innerHTML = `<span class="share-spinner"></span>`;
+    shareBtn.disabled = true;
+
+    // Hide the share button during capture
+    shareBtn.style.visibility = 'hidden';
+
+    // Capture with html2canvas
+    const canvas = await html2canvas(cardElement, {
+      backgroundColor: '#ffffff',
+      scale: 2,
+      useCORS: true,
+      logging: false
+    });
+
+    // Restore share button
+    shareBtn.style.visibility = '';
+
+    // Copy to clipboard
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+    await navigator.clipboard.write([
+      new ClipboardItem({ 'image/png': blob })
+    ]);
+
+    // Success feedback
+    shareBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>`;
+    shareBtn.classList.add('share-success');
+
+    setTimeout(() => {
+      shareBtn.innerHTML = originalHTML;
+      shareBtn.disabled = false;
+      shareBtn.classList.remove('share-success');
+    }, 1500);
+
+  } catch (err) {
+    console.error('Screenshot failed:', err);
+    shareBtn.style.visibility = '';
+    shareBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
+
+    setTimeout(() => {
+      shareBtn.innerHTML = originalHTML;
+      shareBtn.disabled = false;
+    }, 1500);
+  }
 }
 
 function timeAgo(isoString) {
