@@ -8,12 +8,12 @@ module.exports = {
     ecmaVersion: 2020,
   },
   extends: [
-    "eslint:recommended",
+    'eslint:recommended',
   ],
   rules: {
-    "quotes": ["error", "single"],
-    "semi": ["error", "always"],
-    "no-unused-vars": ["warn"],
-    "no-console": "off",
+    'quotes': ['error', 'single'],
+    'semi': ['error', 'always'],
+    'no-unused-vars': ['warn'],
+    'no-console': 'off',
   },
 };

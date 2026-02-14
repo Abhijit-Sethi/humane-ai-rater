@@ -2,9 +2,11 @@
  * Background Service Worker
  * Handles Gemini API calls for HumaneBench evaluation.
  * Receives conversation data from content scripts, evaluates, stores results.
+ * Syncs ratings to Firebase backend for aggregated leaderboards.
  */
 
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+const FIREBASE_FUNCTIONS_URL = 'https://us-central1-humane-ai-rater.cloudfunctions.net';
 
 /**
  * Call Gemini API with the evaluation prompt
@@ -259,7 +261,76 @@ async function saveRatingBg(model, userPrompt, aiResponse, evaluation) {
   );
   await chrome.storage.local.set({ leaderboard });
 
+  // Sync to Firebase backend (fire and forget)
+  syncToFirebase(rating).catch(err => {
+    console.warn('Firebase sync failed (non-blocking):', err.message);
+  });
+
   return rating;
+}
+
+/**
+ * Generate a device hash for rate limiting (anonymous identifier)
+ */
+async function getDeviceHash() {
+  const result = await chrome.storage.local.get('device_hash');
+  if (result.device_hash) return result.device_hash;
+
+  // Generate a random hash
+  const array = new Uint8Array(16);
+  crypto.getRandomValues(array);
+  const hash = Array.from(array, b => b.toString(16).padStart(2, '0')).join('');
+  await chrome.storage.local.set({ device_hash: hash });
+  return hash;
+}
+
+/**
+ * Sync rating to Firebase backend
+ */
+async function syncToFirebase(rating) {
+  const deviceHash = await getDeviceHash();
+
+  const payload = {
+    deviceHash,
+    platform: rating.model,
+    rating: rating.overallScore >= 0 ? 'positive' : 'negative',
+    overallScore: rating.overallScore,
+    principles: rating.principles,
+    userPromptPreview: rating.userPrompt.substring(0, 100),
+    viewportTime: 2000, // Placeholder - actual implementation would track this
+    behaviorSignals: {
+      hasMouseMoved: true,
+      hasTouched: false,
+      documentVisible: true
+    },
+    timestamp: rating.timestamp
+  };
+
+  const response = await fetch(`${FIREBASE_FUNCTIONS_URL}/submitAnonymousRating`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    throw new Error(`Firebase sync failed: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Fetch global aggregates from Firebase
+ */
+async function fetchGlobalAggregates() {
+  try {
+    const response = await fetch(`${FIREBASE_FUNCTIONS_URL}/getAggregates`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return await response.json();
+  } catch (err) {
+    console.warn('Failed to fetch global aggregates:', err.message);
+    return null;
+  }
 }
 
 // --- Message listener ---
@@ -289,6 +360,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'getLeaderboard') {
     chrome.storage.local.get('leaderboard')
       .then(r => sendResponse(r.leaderboard || {}))
+      .catch(() => sendResponse({}));
+    return true;
+  }
+
+  if (message.type === 'getGlobalLeaderboard') {
+    fetchGlobalAggregates()
+      .then(data => sendResponse(data || {}))
       .catch(() => sendResponse({}));
     return true;
   }
