@@ -97,17 +97,7 @@ class HumaneOverlay {
           </svg>
           HumaneScore
         </div>
-        <div class="humane-header-actions">
-          <button class="humane-share-btn" title="Copy score card to clipboard">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
-              <polyline points="16 6 12 2 8 6"/>
-              <line x1="12" y1="2" x2="12" y2="15"/>
-            </svg>
-            Share
-          </button>
-          <button class="humane-close-btn" title="Close">&times;</button>
-        </div>
+        <button class="humane-close-btn" title="Close">&times;</button>
       </div>
       <div class="humane-overall-row">
         <div class="humane-overall-score" style="color: ${scoreColor}">
@@ -164,72 +154,6 @@ class HumaneOverlay {
     // Close button
     panel.querySelector('.humane-close-btn').addEventListener('click', () => {
       container.remove();
-    });
-
-    // Share button - screenshot panel to clipboard
-    panel.querySelector('.humane-share-btn').addEventListener('click', async (e) => {
-      const shareBtn = e.currentTarget;
-      const originalHTML = shareBtn.innerHTML;
-
-      try {
-        shareBtn.innerHTML = `<span class="humane-spinner" style="width:12px;height:12px;border-width:1.5px;"></span> Copying...`;
-        shareBtn.disabled = true;
-
-        // Hide the share and close buttons during screenshot
-        const headerActions = panel.querySelector('.humane-header-actions');
-        headerActions.style.visibility = 'hidden';
-
-        // Use html2canvas to capture the panel
-        const canvas = await html2canvas(panel, {
-          backgroundColor: '#ffffff',
-          scale: 2,
-          useCORS: true,
-          logging: false,
-          removeContainer: true
-        });
-
-        // Restore buttons
-        headerActions.style.visibility = '';
-
-        // Convert canvas to blob and copy to clipboard
-        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
-        await navigator.clipboard.write([
-          new ClipboardItem({ 'image/png': blob })
-        ]);
-
-        // Show success feedback
-        shareBtn.innerHTML = `
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2">
-            <polyline points="20 6 9 17 4 12"/>
-          </svg>
-          Copied!
-        `;
-        shareBtn.classList.add('humane-share-success');
-
-        setTimeout(() => {
-          shareBtn.innerHTML = originalHTML;
-          shareBtn.disabled = false;
-          shareBtn.classList.remove('humane-share-success');
-        }, 2000);
-
-      } catch (err) {
-        console.error('[Humane AI Rater] Share failed:', err);
-        // Restore buttons on error
-        const headerActions = panel.querySelector('.humane-header-actions');
-        if (headerActions) headerActions.style.visibility = '';
-
-        shareBtn.innerHTML = `
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2">
-            <line x1="18" y1="6" x2="6" y2="18"/>
-            <line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
-          Failed
-        `;
-        setTimeout(() => {
-          shareBtn.innerHTML = originalHTML;
-          shareBtn.disabled = false;
-        }, 2000);
-      }
     });
 
     // Thumb voting
